@@ -1,23 +1,50 @@
-### What is the PowerShell App Deployment Toolkit?
+# What is PowerShell App Deployment Toolkit Plus?
 
-The PowerShell App Deployment Toolkit provides a set of functions to perform common application deployment tasks and to interact with the user during a deployment. It simplifies the complex scripting challenges of deploying applications in the enterprise, provides a consistent deployment experience and improves installation success rates.
+The PowerShell App Deployment Toolkit Plus (PSADT+) is a modication to the original PSAppDeployToolkit to allow streamlined deployment of new packages and bring additional consistency to the deployment process. (Please see the Wiki for more details of additions and deployment flow/options.)
 
-The PowerShell App Deployment Toolkit can be used to replace your WiseScript, VBScript and Batch wrapper scripts with one versatile, re-usable and extensible tool.
+## What are the main additions to PSADT+?
 
-### What are the main features of the PowerShell App Deployment Toolkit?
+- **Consisntent Deployment:** All typical and necessary commandss for application deployment are already built in to Deploy-Application.ps1
+- **Simple JSON per App:** All required details are containted within a single JSON file
+- **Custom Commands:** JSON configuration allows any command to be inserted without modification of Deploy-Application.ps1
+- **Addtional Modules:** Added two PowerShell Modules: VcRedist and NTFSSecurity
+- **Addtional Functions:** Added additional functions to facilitate commands for easier use in the JSON
+- **Prequisite Checks and Installation:** Standardized functions for checking for .NET frameworks and Visual Studio Redistributables
+- **Bootstrap Script:** Includes a bootstrap script for use with RMM tools (Uses PSExect and ServiceUI)
+- **Logging to stdout:** Takes the PSADT log and outputs it to stdout so visible in RMM
+- **Separate Repoistory for Apps:** Maintenance of JSON configurations and others assets for common applications
+ 
+## Standard Deployment Flow
 
-* **Easy To Use** - Any PowerShell beginner can use the template and the functions provided with the Toolkit to perform application deployments.
-* **Consistent** - Provides a consistent look and feel for all application deployments, regardless of complexity.
-* **Powerful** - Provides a set of functions to perform common deployment tasks, such as installing or uninstalling multiple applications, prompting users to close apps, setting registry keys, copying files, etc.
-* **User Interface** - Provides user interaction through customizable user interface dialogs boxes, progress dialogs and balloon tip notifications.
-* **Localized** - The UI is localized in several languages and more can easily be added using the XML configuration file.
-* **Integration** - Integrates well with SCCM 2007/2012; provides installation and uninstallation deployment types with options on how to handle exit codes, such as supressing reboots or returning a fast retry code.
-* **Updatable** - The logic engine and functions are separated from per-application scripts, so that you can update the toolkit when a new version is released and maintain backwards compatibility with your deployment scripts.
-* **Extensible** - The Toolkit can be easily extended to add custom scripts and functions.
-* **Helpful** - The Toolkit provides detailed logging of all actions performed and even includes a graphical console to browse the help documentation for the Toolkit functions.
+The simplified version of deployment tasks:
+    
+1. Determine if interactive or non-interactive install
+2. Determine x86 or x64
+3. Download deployment package
+4. Silent install if possible or without user input at minimum
+5. Set permissions for any "All User Desktop" items (instead of removing items, change permissions so any user can delete them)
+6. Prompt user for any related file associations
 
 ## License
 
-The PowerShell App Deployment Tool is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or any later version.
- 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details.
+PSADT+ follows the same license as the original PowerShell App Deployment Toolkit; GPLv3 or later. Both PowerShell modules are under the MIT license as per their original authors.
+
+## Links
+
+### PSAppDeployToolkit
+
+- [Homepage] (https://psappdeploytoolkit.com)
+- [GitHub] (https://github.com/PSAppDeployToolkit/PSAppDeployToolkit)
+
+### VcRedist PowerShell Module
+
+- [Homepage] (https://docs.stealthpuppy.com/vcredist/)
+- [GitHub] (https://github.com/aaronparker/VcRedist)
+- [PowerShell Gallery] (https://www.powershellgallery.com/packages/VcRedist/)
+
+### NTFS Security PowerShell Module
+
+- [Tutorial 1] (http://blogs.technet.com/b/fieldcoding/archive/2014/12/05/ntfssecurity-tutorial-1-getting-adding-and-removing-permissions.aspx)
+- [Tutorial 2] (http://blogs.technet.com/b/fieldcoding/archive/2014/12/05/ntfssecurity-tutorial-2-managing-ntfs-inheritance-and-using-privileges.aspx)
+- [GitHub] (https://github.com/raandree/NTFSSecurity)
+- [PowerShell Gallery] (https://www.powershellgallery.com/packages/NTFSSecurity)
