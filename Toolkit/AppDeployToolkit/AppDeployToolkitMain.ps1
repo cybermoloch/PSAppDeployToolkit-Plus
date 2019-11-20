@@ -1141,6 +1141,11 @@ Function Exit-Script {
 	}
 
 	If ($script:notifyIcon) { Try { $script:notifyIcon.Dispose() } Catch {} }
+	
+	## Dump the exit code to JSON file in case launched through separate process
+	## This allows the bootstrap script to provide the same exitcode to the RMM task
+	$exitCode | ConvertTo-Json | Out-File -FilePath ($dirSupportFiles + '\exitCode.json') -Force
+
 	## Exit the script, returning the exit code to SCCM
 	If (Test-Path -LiteralPath 'variable:HostInvocation') { $script:ExitCode = $exitCode; Exit } Else { Exit $exitCode }
 }
