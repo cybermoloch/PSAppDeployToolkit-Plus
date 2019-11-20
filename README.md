@@ -13,11 +13,11 @@ The PowerShell App Deployment Toolkit Plus (PSADT+) is a modication to the origi
 - **Bootstrap Script:** Includes a bootstrap script for use with RMM tools (Uses PSExect and ServiceUI)
 - **Logging to stdout:** Takes the PSADT log and outputs it to stdout so visible in RMM
 - **Separate Repoistory for Apps:** Maintenance of JSON configurations and others assets for common applications
- 
+
 ## Standard Deployment Flow
 
 The simplified version of deployment tasks:
-    
+
 1. Determine if interactive or non-interactive install
 2. Determine x86 or x64
 3. Download deployment package
@@ -33,22 +33,32 @@ PSADT+ follows the same license as the original PowerShell App Deployment Toolki
 
 ### PSAppDeployToolkit
 
-- [Homepage] (https://psappdeploytoolkit.com)
-- [GitHub] (https://github.com/PSAppDeployToolkit/PSAppDeployToolkit)
+- [Homepage](https://psappdeploytoolkit.com)
+- [GitHub](https://github.com/PSAppDeployToolkit/PSAppDeployToolkit)
 
 ### VcRedist PowerShell Module
 
-- [Homepage] (https://docs.stealthpuppy.com/vcredist/)
-- [GitHub] (https://github.com/aaronparker/VcRedist)
-- [PowerShell Gallery] (https://www.powershellgallery.com/packages/VcRedist/)
+- [Homepage](https://docs.stealthpuppy.com/vcredist/)
+- [GitHub](https://github.com/aaronparker/VcRedist)
+- [PowerShell Gallery](https://www.powershellgallery.com/packages/VcRedist/)
 
 ### NTFS Security PowerShell Module
 
-- [Tutorial 1] (http://blogs.technet.com/b/fieldcoding/archive/2014/12/05/ntfssecurity-tutorial-1-getting-adding-and-removing-permissions.aspx)
-- [Tutorial 2] (http://blogs.technet.com/b/fieldcoding/archive/2014/12/05/ntfssecurity-tutorial-2-managing-ntfs-inheritance-and-using-privileges.aspx)
-- [GitHub] (https://github.com/raandree/NTFSSecurity)
-- [PowerShell Gallery] (https://www.powershellgallery.com/packages/NTFSSecurity)
+- [Tutorial 1](http://blogs.technet.com/b/fieldcoding/archive/2014/12/05/ntfssecurity-tutorial-1-getting-adding-and-removing-permissions.aspx)
+- [Tutorial 2](http://blogs.technet.com/b/fieldcoding/archive/2014/12/05/ntfssecurity-tutorial-2-managing-ntfs-inheritance-and-using-privileges.aspx)
+- [GitHub](https://github.com/raandree/NTFSSecurity)
+- [PowerShell Gallery](https://www.powershellgallery.com/packages/NTFSSecurity)
 
 ### SetUserFTA
 
-- [Homepage] (https://kolbi.cz/blog/2017/10/25/setuserfta-userchoice-hash-defeated-set-file-type-associations-per-user/)
+- [Homepage](https://kolbi.cz/blog/2017/10/25/setuserfta-userchoice-hash-defeated-set-file-type-associations-per-user/)
+
+## PsExec
+
+- [Homepage](https://docs.microsoft.com/en-us/sysinternals/downloads/psexec)
+- Download from above and place PsExec.exe (and PsExec64.exe) in .\Tools\
+
+## ServiceUI
+- [Download](https://www.microsoft.com/en-us/download/details.aspx?id=54259)
+- Copy ServiceUI.exe from below path after installation
+- C:\Program Files\Microsoft Deployment Toolkit\Templates\Distribution\Tools\(x86|x64)\
