@@ -28,7 +28,7 @@ Param (
 [string]$appDeployToolkitExtName = 'PSAppDeployToolkitExt'
 [string]$appDeployExtScriptFriendlyName = 'App Deploy Toolkit Extensions'
 [version]$appDeployExtScriptVersion = [version]'3.8.0'
-[string]$appDeployExtScriptDate = '23/09/2019'
+[string]$appDeployExtScriptDate = '2019-11-19'
 [hashtable]$appDeployExtScriptParameters = $PSBoundParameters
 
 ##*===============================================
@@ -36,6 +36,9 @@ Param (
 ##*===============================================
 
 # <Your custom functions go here>
+# Import all PowerShell Modules from Modules directory
+Get-ChildItem -Path ($scriptRoot + '\Modules') -Recurse | Unblock-File
+Get-ChildItem -Path ($scriptRoot + '\Modules') | Foreach-Object {Import-Module $_.FullName}
 
 ##*===============================================
 ##* END FUNCTION LISTINGS
