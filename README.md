@@ -48,3 +48,7 @@ PSADT+ follows the same license as the original PowerShell App Deployment Toolki
 - [Tutorial 2] (http://blogs.technet.com/b/fieldcoding/archive/2014/12/05/ntfssecurity-tutorial-2-managing-ntfs-inheritance-and-using-privileges.aspx)
 - [GitHub] (https://github.com/raandree/NTFSSecurity)
 - [PowerShell Gallery] (https://www.powershellgallery.com/packages/NTFSSecurity)
+
+### SetUserFTA
+
+- [Homepage] (https://kolbi.cz/blog/2017/10/25/setuserfta-userchoice-hash-defeated-set-file-type-associations-per-user/)
