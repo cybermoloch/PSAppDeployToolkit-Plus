@@ -40,6 +40,30 @@ Param (
 Get-ChildItem -Path ($scriptRoot + '\Modules') -Recurse | Unblock-File
 Get-ChildItem -Path ($scriptRoot + '\Modules') | Foreach-Object {Import-Module $_.FullName}
 
+# Function for testing internet connectivity
+# Uses same parameters as NCSI
+Function Test-InternetConnection {
+    [cmdletbinding()]
+    Param ()
+    Process {
+        $activeWebProbeHost = ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet).ActiveWebProbeHost)
+        $activeWebProbePath = ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet).ActiveWebProbePath)
+        $activeWebProbeContent = ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet).ActiveWebProbeContent)
+        $activeDnsProbeIpAddress = (((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet).ActiveDnsProbeHost).IPAddress)
+        $activeDnsProbeContent = ((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet).ActiveDnsProbeContent)
+        $webRequest = (Invoke-Webrequest ('http://'+ $activeWebProbeHost+ '/'+ $activeWebProbePath) -UseBasicParsing)
+        If ($webRequest.content -eq $activeWebProbeContent) {
+            return ([bool]$true)
+        }
+        If ($activeDnsProbeIpAddress -and $activeWebProbeContent) {
+            If (Resolve-DnsName -Type A -ErrorAction SilentlyContinue $activeDnsProbeIpAddress -eq $activeDnsProbeContent) {
+                return ([bool]$true)
+            }
+        }
+        return ([bool]$false)
+    }
+}
+
 ##*===============================================
 ##* END FUNCTION LISTINGS
 ##*===============================================
