@@ -64,6 +64,88 @@ Function Test-InternetConnection {
     }
 }
 
+# Function for downloading files from URIs (http,https,ftp,file)
+# URIs are tried in order and optionally verified via SHA256 hash
+# If no destination is specified, gets the filename and saves to $dirSupportFiles
+Function Get-FileFromUri {
+    [cmdletbinding()]
+    Param (
+        [Parameter(Position=0,Mandatory=$true)]
+        [string[]]$Uri,
+        [Parameter(Position=1,Mandatory=$false)]
+        [AllowEmptyString()]
+        [string]$Destination,
+        [Parameter(Position=2,Mandatory=$false)]
+        [AllowEmptyString()]
+        [string]$Sha256
+    )
+    #End of parameters
+    Process {
+        If (-not ($Destination)) {
+			# Get filename from the URI
+			$uriFilename = (Split-Path -Path $Uri -Leaf)
+			
+			# Strip any part of filename after ? (query strings for protected downloads)
+			If ($uriFilename -match '\?') {
+				$uriFilename = $uriFilename.Substring(0, $uriFilename.IndexOf('?'))    
+			}            
+            $Destination = ($dirSupportFiles + '\' + $uriFilename)
+        }
+
+        If (-not (Split-Path -Path $Destination -IsAbsolute)) {
+            throw ('Destination invalid; an abolsute path is required')
+        }
+
+        $uriCount = 0
+        do {
+            If (-not ($Uri[$uriCount]) ) {
+				Write-Log -Message ('No more URIs to try; cannot download ' + $uriFilename)
+				return ($false)
+            }
+            
+            $dlStartTime = Get-Date
+            Start-BitsTransfer -Source $Uri[$uriCount] -Destination $Destination
+            
+            If ($?) {
+                Write-Log -Message ($Uri[$uriCount] + ' BITS download completed in ' + $((Get-Date).Subtract($dlStartTime).Seconds) + ' second(s)')
+                # Verify SHA256 Hash if provided
+
+                If ($Sha256) {
+                    $DestinationSha256 = (Get-FileHash -Path $Destination -Algorithm 'SHA256')
+                    Write-Log -Message ('Checking hash of downloaded file')
+                    $hashMatch = ($DestinationSha256.Hash -eq $Sha256)
+
+                    If ($hashMatch) {
+                        Write-Log -Message ('Downloaded file matached expected hash.')
+                        $dlSuccess = $true
+                    } else {
+                        Write-Log -Message ('Downloaded file did not match expected hash.')
+                        Write-Log -Message ('Expected hash was: ' + $Sha256)
+                        Write-Log -Message ('Downloaded hash was: ' + $DestinationSha256.Hash)
+                        #Delete wrong file to prevent usage of corrupt or malicious file
+                        Remove-Item -Path $Destination -Force
+                        $dlSuccess = $false
+                    }
+
+                }
+                else {
+                    Write-Log -Message ('BITS download completed successfully. No SHA256 to compare.')
+                    $dlSuccess = $true
+                }
+            }
+
+            else {
+                Write-Log -Message ('Error with BITS download.')
+                $dlSuccess = $false
+            }
+            $uriCount++
+        }
+        until ($dlSuccess -eq $true) # Download is successful
+
+        return ($dlSuccess)
+    }
+}
+
 ##*===============================================
 ##* END FUNCTION LISTINGS
 ##*===============================================
