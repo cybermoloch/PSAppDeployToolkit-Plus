@@ -318,6 +318,43 @@ Function Install-VcRedistByRelease {
 	}
 }
 
+# Function to set file association for logged in user
+# Requires external tool SetUserFTA.exe (should be in Tools subdirectory)
+Function Set-UserFta {
+    [CmdletBinding()]
+    param (
+        [Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$true)]
+        [string]$Extension,
+        [Parameter(Position=1,Mandatory=$true,ValueFromPipeline=$true)]
+        [string]$ApplicationId,
+        [Parameter(Mandatory=$false)]
+        [switch]$Prompt
+            
+    )
+        
+    begin {
+        $progSetUserFTA = ($scriptRoot + '\Tools\SetUserFTA.exe')
+        If (-not (Test-Path -Path $progSetUserFTA)) {
+            Write-Log -Message 'ERROR: Unable to set file type associaion; SetUserFTA was not found.'
+            return ('Error: ' + $progSetUserFTA + ' not found.')
+        }
+    }
+        
+    process {
+        If ($Prompt.IsPresent) {
+            $promptSetFTA = (Show-InstallationPrompt -Message ('Would you like to set ' + $appName + ' as the default program for ' + $Extension + '?') -Icon 'Question' -ButtonLeftText 'No' -ButtonRightText 'Yes' -Timeout 60 -ExitOnTimeout $false)
+            If ($promptSetFTA -notlike 'Yes') {
+                Write-Log -Message ('User selected "No" or timeout on the FTA prompt.')
+                return ($false)
+            }
+        }
+        Write-Log -Message ($appName + ' set as the default program for ' + $Extension + 'for' + ($CurrentLoggedOnUserSession.NTAccount))
+        Show-BalloonTip -BalloonTipText ($appName + ' set as the default program for ' + $Extension) -BalloonTipIcon 'Info'
+        Execute-ProcessAsUser -Path $progSetUserFTA -Parameters ($Extension + ' ' + $ApplicationId) -Wait
+    }
+     
+}
+
 ##*===============================================
 ##* END FUNCTION LISTINGS
 ##*===============================================
