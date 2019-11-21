@@ -1,4 +1,4 @@
-﻿<#
+﻿	<#
 .SYNOPSIS
 	This script performs the installation or uninstallation of an application(s).
 	# LICENSE #
@@ -60,20 +60,24 @@ Try {
 	##*===============================================
 	##* VARIABLE DECLARATION
 	##*===============================================
+	## Import JSON deployment details and RMM environment variables
+	## Need validation of file exists and valid JSON
+	$deploySettings = Get-Content -Path ($PSScriptRoot + '\Deploy-Application.json')  | ConvertFrom-Json
+
 	## Variables: Application
-	[string]$appVendor = ''
-	[string]$appName = ''
-	[string]$appVersion = ''
-	[string]$appArch = ''
-	[string]$appLang = 'EN'
-	[string]$appRevision = '01'
-	[string]$appScriptVersion = '1.0.0'
-	[string]$appScriptDate = '23/09/2019'
-	[string]$appScriptAuthor = '<author name>'
+	[string]$appVendor = $deploySettings.psadtVariables.appVendor
+	[string]$appName = $deploySettings.psadtVariables.appName
+	[string]$appVersion = $deploySettings.psadtVariables.appVersion
+	[string]$appArch = $deploySettings.psadtVariables.appArch
+	[string]$appLang = $deploySettings.psadtVariables.appLang
+	[string]$appRevision = $deploySettings.psadtVariables.appRevision
+	[string]$appScriptVersion = '2.0.0.0'
+	[string]$appScriptDate = '2019-11-19'
+	[string]$appScriptAuthor = $deploySettings.psadtVariables.$appScriptAuthor
 	##*===============================================
 	## Variables: Install Titles (Only set here to override defaults set by the toolkit)
-	[string]$installName = ''
-	[string]$installTitle = ''
+	[string]$installName = $deploySettings.psadtVariables.installName
+	[string]$installTitle = $deploySettings.psadtVariables.installTitle
 
 	##* Do not modify section below
 	#region DoNotModify
@@ -106,6 +110,18 @@ Try {
 
 	#endregion
 	##* Do not modify section above
+
+	# Export file that containts the full log filename.
+	$logFullPath = ($configToolkitLogDir + '\' + $logName)
+	$logFullPath | ConvertTo-Json | Out-File -FilePath ($dirSupportFiles + '\logFullPath.json') -Force
+
+	# Get exported environment variables from RMM platform
+	if ($dirSupportFiles + '\rmmEnv.json') {
+		$rmmEnvironment = Get-Content -Path ($dirSupportFiles + '\rmmEnv.json')  | ConvertFrom-Json
+	}
+	
+	$closeApps =  If ($deploySettings.appDetails.executables) { ($deploySettings.appDetails.executables -Join ',') }
+
 	##*===============================================
 	##* END VARIABLE DECLARATION
 	##*===============================================
@@ -117,13 +133,134 @@ Try {
 		[string]$installPhase = 'Pre-Installation'
 
 		## Show Welcome Message, close Internet Explorer if required, allow up to 3 deferrals, verify there is enough disk space to complete the install, and persist the prompt
-		Show-InstallationWelcome -CloseApps 'iexplore' -AllowDefer -DeferTimes 3 -CheckDiskSpace -PersistPrompt
-
+		$requiredDiskSpace = ($deploySettings.appDetails.reqSpaceMb)
+		Show-InstallationWelcome -CloseApps { If ($closeApps) {$closeApps} } -CheckDiskSpace -RequiredDiskSpace $requiredDiskSpace
+		
 		## Show Progress Message (with the default message)
 		Show-InstallationProgress
 
 		## <Perform Pre-Installation tasks here>
 
+		# If no x86 download is specified and the OS is 32-bit, presents error and exits
+		If ( (-Not $deploySettings.appDetails.downloadInfo.x86.uri ) -and ( -Not $Is64Bit ) ) {
+			Show-InstallationPrompt -Message 'This application requires an x64 (64-bit) operating system. Please contact your system administrator for assistance.' -Icon Error -Timeout 60
+			Exit-Script -ExitCode -1
+		}
+
+		# Checks for and waits for internet connectivity before proceeding
+		# If not internet connection is detected, presents user with an message that internet is required
+		If (-Not (Test-InternetConnection)) {
+			$cancelInstall = Show-InstallationPrompt -Message "No internet connection detected. Please connect to the internet to continue.`nAn internet connection is required to download the installation package.`nIf you would like to cancel the installation to try again later, please click the `"Cancel`" button." -Icon Information -ButtonRightText 'Cancel'
+				If ($cancelInstall -eq 'Cancel') {
+					Write-Log -Message 'Internet connection not detected and the user cancelled the install.'
+					Exit-Script -ExitCode -1
+				}
+			Do {
+				Start-Sleep -Seconds 5
+			} Until (Test-InternetConnection)			
+		}
+
+		# Downloads the installer package for the correct architecture
+		Show-InstallationProgress -StatusMessage 'Downloading installation package... Please wait.'
+
+		# Set URI based on download settings and OS architecture
+		If (($deploySettings.appDetails.downloadInfo.x64.uri) -and ($Is64Bit)) {
+			$packageUri = ($deploySettings.appDetails.downloadInfo.x64.uri)
+			$installerSha256 = ($deploySettings.appDetails.downloadInfo.x64.sha256)
+			$appArch = 'x64'
+		}
+		else {
+			$packageUri = ($deploySettings.appDetails.downloadInfo.x86.uri)
+			$installerSha256 = ($deploySettings.appDetails.downloadInfo.x86.sha256)
+			$appArch = 'x86'
+		}
+
+		# Get filename from the URI
+		$packageFilename = (Split-Path -Path $packageUri[0] -Leaf)
+		
+		# Strip any part of filename after ? (query strings for protected downloads)
+		If ($packageFilename -match '\?') {
+			$packageFilename = $packageFilename.Substring(0, $packageFilename.IndexOf('?'))    
+		}
+
+		# Get extension of file
+		$packageFileType = (($packageFilename).Split('.')[-1])
+
+		# Set download destination to $dirFiles if exe or msi file, $dirSUpportFiles if zip file
+		Switch -exact ($packageFileType)
+		{
+			'msi' { $destinationPath = $dirFiles }
+			'exe' { $destinationPath = $dirFiles }
+			'zip' { $destinationPath = $dirSupportFiles }
+			default {
+				Write-Log -Message 'The installer package type was unknown. (Not an .msi, .exe or .zip file.)'
+				Show-InstallationPrompt -Message 'Invalid installer package filetype specified. Please contact your system adminstrator for assistance.' -Icon Error -Timeout 60 -ButtonRight 'OK'
+				Exit-Script -ExitCode -1
+			}
+		}
+
+		Write-Log -Message ('Attempting to download ' + $packageFilename)
+
+		If (Get-FileFromUri -Uri $packageUri -Destination ($destinationPath + '\' + $packageFilename) -Sha256 $installerSha256) {
+			Write-Log -Message ($packageFilename + ' sucessfully downloaded to ' + $destinationPath)
+		}
+		else {
+			Write-Log -Message ($packageFilename + ' failed to download')
+			Show-InstallationPrompt -Message 'Error downloading installer. Please try again later.' -Icon Error -Timeout 60 -ButtonRight 'OK'
+			Exit-Script -ExitCode -1
+		}
+
+		# Extract contents of archive to $dirFiles
+		If ($packageFileType -like 'zip') {
+			Write-Log -Message ('Extracting ' + $packageFilename + ' to ' + $dirFiles)
+			Show-InstallationProgress -StatusMessage 'Extracting installation package... Please wait.'
+			Expand-Archive -Path ($dirSupportFiles + '\' + $packageFilename) -DestinationPath $dirFiles -Force
+		}
+
+		# dotNet and vcRedist Prequisites check and install
+		# should add failure messages to user and exit script if fails
+		Show-InstallationProgress -StatusMessage ('Checking for dependencies')
+		If ($deploySettings.appDetails.dotNet35.required) {
+			Write-Log -Message ('.NET Framework 3.5 required')
+			If ( -Not (Test-DotNet35) ) {
+				Write-Log -Message ('.NET Framework 3.5 was not found. Attempting to install it.')
+				Show-InstallationProgress -StatusMessage ('Installing .NET Framework 3.5')
+				Install-DotNet35
+			}
+			else {
+				Write-Log -Message ('.NET Framework 3.5 is installed.')
+			}
+		}
+
+		If ($deploySettings.appDetails.dotNet4x.required) {
+			Write-Log -Message ('.NET Framework ' + ($deploySettings.appDetails.dotNet4x.minVersion) + ' required')
+			If ( -Not (Test-DotNet4x -MinVersion $deploySettings.appDetails.dotNet4x.minVersion) ) {
+				Write-Log -Message ('.NET Framework ' + ($deploySettings.appDetails.dotNet4x.minVersion) + ' was not found. Attempting to install .NET Framwork 4.8')
+				Show-InstallationProgress -StatusMessage ('Installing .NET Framework 4.8')
+				Install-DotNet4x
+			}
+			else {
+				Write-Log -Message ('.NET Framework ' + ($deploySettings.appDetails.dotNet4x.MinVersion) + ' is installed')
+			}
+		}		
+		
+		If ($deploySettings.appDetails.vcRedist.required) {
+			$vcRedistParams = @{
+				Release = $deploySettings.appDetails.vcRedist.release
+				Architecture = $appArch
+				MinVersion = $deploySettings.appDetails.vcRedist.minVersion
+			}
+			# Checking for Visual Studio Redistributables
+			If ( -Not (Test-VcRedist @vcRedistParams) ) {
+				Write-Log -Message ('The required vcRedist was not found. Attempting to install.')
+				Install-VcRedistByRelease -Release ($deploySettings.appDetails.vcRedist.release) -Architecture ($appArch)
+			}
+		}	
+
+		If ($deploySettings.tasks.preinstallation) {
+			Show-InstallationProgress -StatusMessage ('Performing pre-installation tasks')
+			$deploySettings.tasks.preinstallation | ForEach-Object -Process {Invoke-Expression $_}
+		}
 
 		##*===============================================
 		##* INSTALLATION
@@ -137,7 +274,11 @@ Try {
 		}
 
 		## <Perform Installation tasks here>
+		Show-InstallationProgress -StatusMessage 'Performing background installation...'
 
+		If ($deploySettings.tasks.installation) {
+			$deploySettings.tasks.installation | ForEach-Object -Process {Invoke-Expression $_}
+		}
 
 		##*===============================================
 		##* POST-INSTALLATION
@@ -145,9 +286,30 @@ Try {
 		[string]$installPhase = 'Post-Installation'
 
 		## <Perform Post-Installation tasks here>
+		# Sets permissions to All USERS Desktop Items to Modify to they can by deleted by normal users
+		If ($deploySettings.appDetails.desktopItems) {
+			$deploySettings.appDetails.desktopItems | ForEach-Object -Process {
+				$ntfsAccessParams = @{
+					Path = ($envCommonDesktop + '\' + $PSItem)
+					Account = 'NT AUTHORITY\Authenticated Users'
+					AccessRights = 'Modify'
+				}
+				Add-NTFSAccess @ntfsAccessParams
+			}
+		}
+
+		If (($deploySettings.appDetails.associations[0].application -ine '') -and ($IsProcessUserInteractive)) {
+			$deploySettings.appDetails.associations | ForEach-Object -Process {Set-UserFta -Extension $_.extension -ApplicationId $_.application -Prompt}
+		}
+
+		Show-InstallationProgress -StatusMessage ('Performing post-installation tasks')
+		
+		If ($deploySettings.tasks.postinstallation) {
+			$deploySettings.tasks.postinstallation | ForEach-Object -Process {Invoke-Expression $_}
+		}
 
 		## Display a message at the end of the install
-		If (-not $useDefaultMsi) { Show-InstallationPrompt -Message 'You can customize text to appear at the end of an install or remove it completely for unattended installations.' -ButtonRightText 'OK' -Icon Information -NoWait }
+		If (-not $useDefaultMsi) { Show-InstallationPrompt -Message ($appName + ' sucessfully installated.') -ButtonRightText 'OK' -Icon Information -NoWait }
 	}
 	ElseIf ($deploymentType -ieq 'Uninstall')
 	{
@@ -157,14 +319,17 @@ Try {
 		[string]$installPhase = 'Pre-Uninstallation'
 
 		## Show Welcome Message, close Internet Explorer with a 60 second countdown before automatically closing
-		Show-InstallationWelcome -CloseApps 'iexplore' -CloseAppsCountdown 60
+		Show-InstallationWelcome -CloseApps { If ($closeApps) {$closeApps} } -CloseAppsCountdown 60
 
 		## Show Progress Message (with the default message)
 		Show-InstallationProgress
 
 		## <Perform Pre-Uninstallation tasks here>
-
-
+		If ($deploySettings.tasks.preuninstallation) {
+			Show-InstallationProgress -StatusMessage ('Performing pre-uninstallation tasks')
+			$deploySettings.tasks.preuninstallation | ForEach-Object  -Process {Invoke-Expression $_}
+		}
+		
 		##*===============================================
 		##* UNINSTALLATION
 		##*===============================================
@@ -177,15 +342,21 @@ Try {
 		}
 
 		# <Perform Uninstallation tasks here>
-
-
+		If ($deploySettings.tasks.uninstallation) {
+			Show-InstallationProgress -StatusMessage ('Performing uninstallation tasks')
+			$deploySettings.tasks.uninstallation | ForEach-Object  -Process {Invoke-Expression $_}
+		}
+		
 		##*===============================================
 		##* POST-UNINSTALLATION
 		##*===============================================
 		[string]$installPhase = 'Post-Uninstallation'
 
 		## <Perform Post-Uninstallation tasks here>
-
+		If ($deploySettings.tasks.postuninstallation) {
+			Show-InstallationProgress -StatusMessage ('Performing post-uninstallation tasks')
+			$deploySettings.tasks.postuninstallation | ForEach-Object  -Process {Invoke-Expression $_}
+		}
 
 	}
 
