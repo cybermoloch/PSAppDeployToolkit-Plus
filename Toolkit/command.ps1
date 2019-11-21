@@ -1,5 +1,5 @@
 # Bootstrap script for PSADT+
-# Version 2.0.0.0
+# Version 2.0.0.1
 
 # REQUIRED PSADT files
 $psadtArchive = 'PSAppDeployToolkit.zip'
@@ -90,16 +90,16 @@ if (Test-Path ("Env:\Action")) {
     Switch -exact (${Env:\Action})
     {
         'INSTALL' {
-            Write-Output ('Flag set for INSTALL')
+            Write-Output ('Action set for INSTALL')
             $psadtType = '-DeploymentType \"Install\"'
         }
         'UNINSTALL' {
-            Write-Output ('Flag set for UNINSTALL')
+            Write-Output ('Action set for UNINSTALL')
             $psadtType = '-DeploymentType \"Uninstall\"'
         }
         default {
             # In case the action variable was created incorrectly
-            Write-Error -Message ('Unknown action type. Exiting loader script.')
+            Write-Error -Message ('Unknown action: ' + ${Env:\Action})
             Exit -1
         }
     }
