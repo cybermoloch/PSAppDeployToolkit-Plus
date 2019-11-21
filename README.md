@@ -10,9 +10,11 @@ The PowerShell App Deployment Toolkit Plus (PSADT+) is a modication to the origi
 - **Addtional Modules:** Added two PowerShell Modules: VcRedist and NTFSSecurity
 - **Addtional Functions:** Added additional functions to facilitate commands for easier use in the JSON
 - **Prequisite Checks and Installation:** Standardized functions for checking for .NET frameworks and Visual Studio Redistributables
-- **Bootstrap Script:** Includes a bootstrap script for use with RMM tools (Uses PSExect and ServiceUI)
-- **Logging to stdout:** Takes the PSADT log and outputs it to stdout so visible in RMM
-- **Separate Repoistory for Apps:** Maintenance of JSON configurations and others assets for common applications
+- **Bootstrap Script:** Includes a bootstrap script for use with RMM tools (Uses PSExec and ServiceUI)
+- **Logging to stdout:** Takes the PSADT log and outputs it to stdout so visible from RMM task log
+- **Separate Repository for Apps:** Maintenance of JSON configurations and others assets for common applications [1]
+
+[1]: https://gitlab.com/cybermoloch/psadtplus-apps
 
 ## Standard Deployment Flow
 
