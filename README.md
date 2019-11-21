@@ -14,7 +14,7 @@ The PowerShell App Deployment Toolkit Plus (PSADT+) is a modication to the origi
 - **Logging to stdout:** Takes the PSADT log and outputs it to stdout so visible from RMM task log
 - **Separate Repository for Apps:** Maintenance of JSON configurations and others assets for common applications [1]
 
-[1]: https://gitlab.com/cybermoloch/psadtplus-apps
+[1]: https://gitlab.com/cybermoloch/psappdeploytoolkit-apps
 
 ## Standard Deployment Flow
 
