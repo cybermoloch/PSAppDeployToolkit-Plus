@@ -73,7 +73,7 @@ Try {
 	[string]$appRevision = $deploySettings.psadtVariables.appRevision
 	[string]$appScriptVersion = '2.0.0.0'
 	[string]$appScriptDate = '2019-11-19'
-	[string]$appScriptAuthor = $deploySettings.psadtVariables.$appScriptAuthor
+	[string]$appScriptAuthor = $deploySettings.psadtVariables.appScriptAuthor
 	##*===============================================
 	## Variables: Install Titles (Only set here to override defaults set by the toolkit)
 	[string]$installName = $deploySettings.psadtVariables.installName
