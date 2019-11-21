@@ -27,9 +27,17 @@ The simplified version of deployment tasks:
 5. Set permissions for any "All User Desktop" items (instead of removing items, change permissions so any user can delete them)
 6. Prompt user for any related file associations
 
+## Usage
+
+1. Create ZIP file of the Toolkit directory and name the file PSAppDeployToolkit.zip
+2. Add PsExec and ServiceUI executables (both x86 and x64) to the Tools sub-directory (in the zip file).
+3. In your deployment tool, have it run the command.ps1 and attach the PSAppDeployToolkit.zip, Deploy-Application.json and optionally a new banner image.
+4. If there are additional supporting files attach them in a zip file named SupportFiles.zip.
+5. Run the task.
+
 ## License
 
-PSADT+ follows the same license as the original PowerShell App Deployment Toolkit; GPLv3 or later. Both PowerShell modules are under the MIT license as per their original authors.
+PSADT+ follows the same license as the original PowerShell App Deployment Toolkit: GPLv3. Both PowerShell modules are under the MIT license as per their original authors.
 
 ## Links
 
