@@ -146,8 +146,8 @@
         },
         {
             "Name": "Visual C++ Redistributable for Visual Studio 2019",
-            "ProductCode": "{852adda4-4c78-4a38-b583-c0b360a329d6}",
-            "Version": "14.23.27820.0",
+            "ProductCode": "{6913e92a-b64e-41c9-a5e6-cef39207fe89}",
+            "Version": "14.25.28508.3",
             "URL": "https://www.visualstudio.com/downloads/",
             "Download": "https://aka.ms/vs/16/release/VC_redist.x64.exe",
             "Release": "2019",
@@ -158,8 +158,8 @@
         },
         {
             "Name": "Visual C++ Redistributable for Visual Studio 2019",
-            "ProductCode": "{45231ab4-69fd-486a-859d-7a59fcd11013}",
-            "Version": "14.23.27820.0",
+            "ProductCode": "{65e650ff-30be-469d-b63a-418d71ea1765}",
+            "Version": "14.25.28508.3",
             "URL": "https://www.visualstudio.com/downloads/",
             "Download": "https://aka.ms/vs/16/release/VC_redist.x86.exe",
             "Release": "2019",
