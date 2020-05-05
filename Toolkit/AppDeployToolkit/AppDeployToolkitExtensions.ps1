@@ -95,6 +95,11 @@ Function Get-FileFromUri {
         If (-not (Split-Path -Path $Destination -IsAbsolute)) {
             throw ('Destination invalid; an abolsute path is required')
         }
+        
+        # Force TLS1.2 seems to help with some websites
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        # Speeds up Invoke-WebRequest when downloading files
+        $ProgressPreference = 'SilentlyContinue'
 
         $uriCount = 0
         do {
@@ -104,10 +109,10 @@ Function Get-FileFromUri {
             }
             
             $dlStartTime = Get-Date
-            Start-BitsTransfer -Source $Uri[$uriCount] -Destination $Destination
+            Invoke-WebRequest -Uri $Uri[$uriCount] -OutFile $Destination -UseBasicParsing
             
             If ($?) {
-                Write-Log -Message ($Uri[$uriCount] + ' BITS download completed in ' + $((Get-Date).Subtract($dlStartTime).Seconds) + ' second(s)')
+                Write-Log -Message ($Uri[$uriCount] + ' download completed in ' + $((Get-Date).Subtract($dlStartTime).Seconds) + ' second(s)')
                 # Verify SHA256 Hash if provided
 
                 If ($Sha256) {
@@ -129,13 +134,13 @@ Function Get-FileFromUri {
 
                 }
                 else {
-                    Write-Log -Message ('BITS download completed successfully. No SHA256 to compare.')
+                    Write-Log -Message ('Download completed successfully. No SHA256 to compare.')
                     $dlSuccess = $true
                 }
             }
 
             else {
-                Write-Log -Message ('Error with BITS download.')
+                Write-Log -Message ('Error with download.')
                 $dlSuccess = $false
             }
             $uriCount++
@@ -313,7 +318,9 @@ Function Install-VcRedistByRelease {
     If (-not (Get-Module -Name 'VcRedist')) { retun ('Error: VcRedist Module Not found') }
     
     $vcRedistReq = (Get-VcList -Release $Release -Architecture $Architecture)
+    Write-Log -Message ('Downloading ' + $vcRedistReq)
     Save-VcRedist -Path ($dirSupportFiles) -VcList $vcRedistReq
+    Write-Log -Message ('Installing ' + $vcRedistReq)
     Install-VcRedist -Path ($dirSupportFiles) -VcList $vcRedistReq -Silent
 	}
 }
