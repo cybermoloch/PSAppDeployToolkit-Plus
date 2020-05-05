@@ -1,25 +1,49 @@
 # Bootstrap script for PSADT+
-# Version 2.0.0.1
+# Version 2.1.0.10
 
 # REQUIRED PSADT files
+$psadtArchiveUri = ${Env:\PSADT_ArchiveURI}
 $psadtArchive = 'PSAppDeployToolkit.zip'
+$psadtExtrasUri = ${Env:\PSADT_ExtrasURI}
+$psadtExtras = 'Extras.zip'
 $psadtSettings = 'Deploy-Application.json'
 # OPTIONAL PSADT files
 $psadtBanner = 'AppDeployToolkitBanner.png'
 $psadtScript = 'Deploy-Application.ps1'
 $psadtSupport = 'SupportFiles.zip'
 $psadtFiles = 'Files.zip'
+$psadtBrandingUri = ${Env:\PSADT_BrandingURI}
+$psadtBranding = 'Branding.zip'
+
+
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+If ( (-Not (Test-Path $psadtArchive) ) -and ($psadtArchiveUri) ) {
+    Write-Output ('Downloading ' + $psadtArchiveUri)
+    Invoke-WebRequest -Uri $psadtArchiveUri -OutFile $psadtArchive
+}
+
+If ($psadtExtrasUri) {
+    Write-Output ('Downloading ' + $psadtExtrasUri)
+    Invoke-WebRequest -Uri $psadtExtrasUri -OutFile $psadtExtras
+}
+
+If ($psadtBrandingUri) {
+    Write-Output ('Downloading ' + $psadtBrandingUri)
+    Invoke-WebRequest -Uri $psadtBrandingUri -OutFile $psadtBranding
+}
 
 # Set temporary directory; Deploy-Application.exe doesn't work if in $PSScriptRoot
 $installerDir = 'C:\ProgramData\PSAppDeployToolkit\InstallerTemp'
 $psadtPath = ($installerDir + '\AppDeployToolkit')
+$psadtExtrasPath = ($psadtPath + '\Extras')
 $psadtSupportPath = ($installerDIr + '\SupportFiles')
 $psadtFilesPath = ($installerDIr + '\Files')
 
 # Runs PsExec.exe with -i so PSADT has more magic
-$psExecPath = ($psadtPath + '\Tools\PsExec.exe')
+$psExecPath = ($psadtPath + '\Extras\PsExec.exe')
 # C:\Program Files\Microsoft Deployment Toolkit\Templates\Distribution\Tools\{x86,x64}
-$serviceUIPath = ($psadtPath + '\Tools\ServiceUI.exe')
+$serviceUIPath = ($psadtPath + '\Extras\ServiceUI.exe')
 $psExecArgs = '-s -i -accepteula -nobanner "'
 
 # Remove installation directory to ensure old installations don't cause issues
@@ -31,17 +55,19 @@ if (Test-Path $installerDir) {
 
 # Creates the Files and SupportFiles directories in case the archive does not have them
 # (Windows' built-in archive management won't add empty directories but 7-Zip does..)
-@($psadtFilesPath, $psadtSupportPath) | ForEach-Object -Process {
+@($psadtFilesPath, $psadtSupportPath, $psadtExtrasPath) | ForEach-Object -Process {
     If ( -not (Test-Path -Path $PSItem) ) {
         Write-Output ('Creating directory: '+ $PSItem)
         New-Item -Path $PSItem -ItemType Directory -Force | Out-Null
     }
 }
 
-foreach ($psadtItem in @($psadtArchive,$psadtSettings,$psadtBanner,$psadtScript,$psadtSupport,$psadtFiles)) {
+foreach ($psadtItem in @($psadtArchive,$psadtExtras,$psadtBranding,$psadtSettings,$psadtBanner,$psadtScript,$psadtSupport,$psadtFiles)) {
     If (Test-Path -Path $psadtItem) {
         Switch -exact ($psadtItem) {
             $psadtArchive { Expand-Archive -Path $psadtArchive -DestinationPath $installerDir -Force }
+            $psadtExtras { Expand-Archive -Path $psadtExtras -DestinationPath $psadtExtrasPath -Force }
+            $psadtBranding { Expand-Archive -Path $psadtBranding -DestinationPath $psadtPath -Force }
             $psadtSettings {Copy-Item -Path $psadtSettings -Destination $installerDir -Force}
             $psadtBanner {Copy-Item -Path $psadtBanner -Destination $psadtPath -Force}
             $psadtScript {Copy-Item -Path $psadtScript -Destination $installerDir -Force}
@@ -52,7 +78,7 @@ foreach ($psadtItem in @($psadtArchive,$psadtSettings,$psadtBanner,$psadtScript,
     }
     else {
         Write-Warning ($psadtItem + ' not found')
-        If (($psadtItem -like $psadtArchive) -or ($psadtItem -like $psadtSettings)) {
+        If (($psadtItem -like $psadtArchive) -or ($psadtItem -like $psadtSettings) -or ($psadtItem -like $psadtExtras)) {
             Write-Error ($psadtItem + ' is a required file. Exiting.')
             Exit -1
         }
