@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
 	This script contains the functions and logic engine for the Deploy-Application.ps1 script.
 	# LICENSE #
@@ -70,9 +70,9 @@ Param (
 [string]$appDeployMainScriptFriendlyName = 'App Deploy Toolkit Main'
 
 ## Variables: Script Info
-[version]$appDeployMainScriptVersion = [version]'3.8.0'
-[version]$appDeployMainScriptMinimumConfigVersion = [version]'3.8.0'
-[string]$appDeployMainScriptDate = '23/09/2019'
+[version]$appDeployMainScriptVersion = [version]'3.8.2'
+[version]$appDeployMainScriptMinimumConfigVersion = [version]'3.8.2'
+[string]$appDeployMainScriptDate = '13/04/2020'
 [hashtable]$appDeployMainScriptParameters = $PSBoundParameters
 
 ## Variables: Datetime and Culture
@@ -385,6 +385,7 @@ if ($appDeployLogoBannerHeight -gt $appDeployLogoBannerMaxHeight) {
 	[string]$configBalloonTextError = $xmlUIMessages.BalloonText_Error
 	[string]$configProgressMessageInstall = $xmlUIMessages.Progress_MessageInstall
 	[string]$configProgressMessageUninstall = $xmlUIMessages.Progress_MessageUninstall
+	[string]$configProgressMessageRepair = $xmlUIMessages.Progress_MessageRepair
 	[string]$configClosePromptMessage = $xmlUIMessages.ClosePrompt_Message
 	[string]$configClosePromptButtonClose = $xmlUIMessages.ClosePrompt_ButtonClose
 	[string]$configClosePromptButtonDefer = $xmlUIMessages.ClosePrompt_ButtonDefer
@@ -399,6 +400,7 @@ if ($appDeployLogoBannerHeight -gt $appDeployLogoBannerMaxHeight) {
 	[string]$configBlockExecutionMessage = $xmlUIMessages.BlockExecution_Message
 	[string]$configDeploymentTypeInstall = $xmlUIMessages.DeploymentType_Install
 	[string]$configDeploymentTypeUnInstall = $xmlUIMessages.DeploymentType_UnInstall
+	[string]$configDeploymentTypeRepair = $xmlUIMessages.DeploymentType_Repair
 	[string]$configRestartPromptTitle = $xmlUIMessages.RestartPrompt_Title
 	[string]$configRestartPromptMessage = $xmlUIMessages.RestartPrompt_Message
 	[string]$configRestartPromptMessageTime = $xmlUIMessages.RestartPrompt_MessageTime
@@ -657,7 +659,7 @@ Function Write-Log {
 		[int16]$Severity = 1,
 		[Parameter(Mandatory=$false,Position=2)]
 		[ValidateNotNull()]
-		[string]$Source = '',
+		[string]$Source = 'Unknown',
 		[Parameter(Mandatory=$false,Position=3)]
 		[ValidateNotNullorEmpty()]
 		[string]$ScriptSection = $script:installPhase,
@@ -869,6 +871,47 @@ Function Write-Log {
 }
 #endregion
 
+#region Function Remove-InvalidFileNameChars
+Function Remove-InvalidFileNameChars {
+	<#
+	.SYNOPSIS
+		Remove invalid characters from the supplied string.
+	.DESCRIPTION
+		Remove invalid characters from the supplied string and returns a valid filename as a string.
+	.EXAMPLE
+		Remove-InvalidFileNameChars -Name "Filename/\1"
+	.NOTES
+		This functions always returns a string however it can be empty if the name only contains invalid characters.
+		Do no use this command for an entire path as '\' is not a valid filename character.
+	.LINK
+		http://psappdeploytoolkit.com
+	#>
+	[CmdletBinding()]
+	Param (
+		[Parameter(Mandatory=$true,Position=0,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+		[AllowEmptyString()]
+		[string]$Name
+	)
+
+	Begin {
+		## Get the name of this function and write header
+		[string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
+	}
+	Process {
+		Try {
+			Write-Output -InputObject (([char[]]$Name | Where-Object { [IO.Path]::GetinvalidFileNameChars() -notcontains $_ }) -join '')
+		}
+		Catch {
+			Write-Log -Message "Failed to remove invalid characters from the supplied filename. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+		}
+	}
+	End {
+		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -Footer
+	}
+}
+#endregion
+
 
 #region Function New-ZipFile
 Function New-ZipFile {
@@ -931,6 +974,11 @@ Function New-ZipFile {
 	}
 	Process {
 		Try {
+			## Remove invalid characters from the supplied filename
+			$DestinationArchiveFileName = Remove-InvalidFileNameChars -Name $DestinationArchiveFileName
+			If ($DestinationArchiveFileName.length -eq 0) {
+				Throw "Invalid filename characters replacement resulted into an empty string."
+			}
 			## Get the full destination path where the archive will be stored
 			[string]$DestinationPath = Join-Path -Path $DestinationArchiveDirectoryPath -ChildPath $DestinationArchiveFileName -ErrorAction 'Stop'
 			Write-Log -Message "Create a zip archive with the requested content at destination path [$DestinationPath]." -Source ${CmdletName}
@@ -2046,6 +2094,7 @@ Function Get-InstalledApplication {
 			Write-Log -Message "The following error(s) took place while enumerating installed applications from the registry. `n$(Resolve-Error -ErrorRecord $ErrorUninstallKeyPath)" -Severity 2 -Source ${CmdletName}
 		}
 
+		$UpdatesSkippedCounter = 0
 		## Create a custom object with the desired properties for the installed applications and sanitize property details
 		[psobject[]]$installedApplication = @()
 		ForEach ($regKeyApp in $regKeyApplication) {
@@ -2055,18 +2104,15 @@ Function Get-InstalledApplication {
 				[string]$appPublisher = ''
 
 				## Bypass any updates or hotfixes
-				If (-not $IncludeUpdatesAndHotfixes) {
-					If ($regKeyApp.DisplayName -match '(?i)kb\d+') { Continue }
-					If ($regKeyApp.DisplayName -match 'Cumulative Update') { Continue }
-					If ($regKeyApp.DisplayName -match 'Security Update') { Continue }
-					If ($regKeyApp.DisplayName -match 'Hotfix') { Continue }
+				If ((-not $IncludeUpdatesAndHotfixes) -and (($regKeyApp.DisplayName -match '(?i)kb\d+') -or ($regKeyApp.DisplayName -match 'Cumulative Update') -or ($regKeyApp.DisplayName -match 'Security Update') -or ($regKeyApp.DisplayName -match 'Hotfix'))) {
+					$UpdatesSkippedCounter += 1
+					Continue
 				}
 
-				## Remove any control characters which may interfere with logging and creating file path names from these variables
-				$illegalChars = [string][System.IO.Path]::GetInvalidFileNameChars()
-				$appDisplayName = $regKeyApp.DisplayName -replace $illegalChars,''
-				$appDisplayVersion = $regKeyApp.DisplayVersion -replace $illegalChars,''
-				$appPublisher = $regKeyApp.Publisher -replace $illegalChars,''
+				## Remove any invalid filename characters which may interfere with logging and creating file path names from these variables
+				$appDisplayName = Remove-InvalidFileNameChars -Name $regKeyApp.DisplayName
+				$appDisplayVersion = Remove-InvalidFileNameChars -Name $regKeyApp.DisplayVersion
+				$appPublisher = Remove-InvalidFileNameChars -Name $regKeyApp.Publisher
 
 
 				## Determine if application is a 64-bit application
@@ -2145,6 +2191,19 @@ Function Get-InstalledApplication {
 			}
 		}
 
+		If (-not $IncludeUpdatesAndHotfixes) {
+			## Write to log the number of entries skipped due to them being considered updates
+			If ($UpdatesSkippedCounter -eq 1) {
+				Write-Log -Message "Skipped 1 entry while searching, because it was considered a Microsoft update." -Source ${CmdletName}
+			} else {
+				Write-Log -Message "Skipped $UpdatesSkippedCounter entries while searching, because they were considered Microsoft updates." -Source ${CmdletName}
+			}
+		}
+
+		If (-not $installedApplication) {
+			Write-Log -Message "Found no application based on the supplied parameters." -Source ${CmdletName}
+		}
+
 		Write-Output -InputObject $installedApplication
 	}
 	End {
@@ -2190,10 +2249,20 @@ Function Execute-MSI {
 	Skips the check to determine if the MSI is already installed on the system. Default is: $false.
 .PARAMETER IncludeUpdatesAndHotfixes
 	Include matches against updates and hotfixes in results.
+.PARAMETER NoWait
+	Immediately continue after executing the process.
 .PARAMETER PassThru
 	Returns ExitCode, STDOut, and STDErr output from the process.
+.PARAMETER IgnoreExitCodes
+	List the exit codes to ignore or * to ignore all exit codes.
+.PARAMETER PriorityClass	
+	Specifies priority class for the process. Options: Idle, Normal, High, AboveNormal, BelowNormal, RealTime. Default: Normal
+.PARAMETER ExitOnProcessFailure
+	Specifies whether the function should call Exit-Script when the process returns an exit code that is considered an error/failure. Default: $true
+.PARAMETER RepairFromSource
+	Specifies whether we should repair from source. Also rewrites local cache. Default: $false
 .PARAMETER ContinueOnError
-	Continue if an exit code is returned by msiexec that is not recognized by the App Deploy Toolkit. Default is: $false.
+	Continue if an error occured while trying to start the process. Default: $false.
 .EXAMPLE
 	Execute-MSI -Action 'Install' -Path 'Adobe_FlashPlayer_11.2.202.233_x64_EN.msi'
 	Installs an MSI
@@ -2253,8 +2322,22 @@ Function Execute-MSI {
 		[Parameter(Mandatory=$false)]
 		[switch]$IncludeUpdatesAndHotfixes = $false,
 		[Parameter(Mandatory=$false)]
+		[switch]$NoWait = $false,
+		[Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
 		[switch]$PassThru = $false,
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$IgnoreExitCodes,
+		[Parameter(Mandatory=$false)]
+		[ValidateSet('Idle', 'Normal', 'High', 'AboveNormal', 'BelowNormal', 'RealTime')]
+		[Diagnostics.ProcessPriorityClass]$PriorityClass = 'Normal',
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[boolean]$ExitOnProcessFailure = $true,
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[boolean]$RepairFromSource = $false,
 		[Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
 		[boolean]$ContinueOnError = $false
@@ -2288,10 +2371,10 @@ Function Execute-MSI {
 			If (-not $logName) {
 				If ($productCodeNameVersion) {
 					If ($productCodeNameVersion.Publisher) {
-						$logName = ($productCodeNameVersion.Publisher + '_' + $productCodeNameVersion.DisplayName + '_' + $productCodeNameVersion.DisplayVersion) -replace "[$invalidFileNameChars]",'' -replace ' ',''
+						$logName = (Remove-InvalidFileNameChars -Name ($productCodeNameVersion.Publisher + '_' + $productCodeNameVersion.DisplayName + '_' + $productCodeNameVersion.DisplayVersion)) -replace ' ',''
 					}
 					Else {
-						$logName = ($productCodeNameVersion.DisplayName + '_' + $productCodeNameVersion.DisplayVersion) -replace "[$invalidFileNameChars]",'' -replace ' ',''
+						$logName = (Remove-InvalidFileNameChars -Name ($productCodeNameVersion.DisplayName + '_' + $productCodeNameVersion.DisplayVersion)) -replace ' ',''
 					}
 				}
 				Else {
@@ -2333,7 +2416,7 @@ Function Execute-MSI {
 			'Install' { $option = '/i'; [string]$msiLogFile = "$logPath" + '_Install'; $msiDefaultParams = $msiInstallDefaultParams }
 			'Uninstall' { $option = '/x'; [string]$msiLogFile = "$logPath" + '_Uninstall'; $msiDefaultParams = $msiUninstallDefaultParams }
 			'Patch' { $option = '/update'; [string]$msiLogFile = "$logPath" + '_Patch'; $msiDefaultParams = $msiInstallDefaultParams }
-			'Repair' { $option = '/f'; [string]$msiLogFile = "$logPath" + '_Repair'; $msiDefaultParams = $msiInstallDefaultParams }
+			'Repair' { $option = '/f'; If ($RepairFromSource) {	$option += "v" } [string]$msiLogFile = "$logPath" + '_Repair'; $msiDefaultParams = $msiInstallDefaultParams }
 			'ActiveSetup' { $option = '/fups'; [string]$msiLogFile = "$logPath" + '_ActiveSetup' }
 		}
 
@@ -2455,6 +2538,10 @@ Function Execute-MSI {
 			If ($ContinueOnError) { $ExecuteProcessSplat.Add( 'ContinueOnError', $ContinueOnError) }
 			If ($SecureParameters) { $ExecuteProcessSplat.Add( 'SecureParameters', $SecureParameters) }
 			If ($PassThru) { $ExecuteProcessSplat.Add( 'PassThru', $PassThru) }
+			If ($IgnoreExitCodes) {  $ExecuteProcessSplat.Add( 'IgnoreExitCodes', $IgnoreExitCodes) }
+			If ($PriorityClass) {  $ExecuteProcessSplat.Add( 'PriorityClass', $PriorityClass) }
+			If ($ExitOnProcessFailure) {  $ExecuteProcessSplat.Add( 'ExitOnProcessFailure', $ExitOnProcessFailure) }
+			If ($NoWait) { $ExecuteProcessSplat.Add( 'NoWait', $NoWait) }
 			#  Call the Execute-Process function
 			If ($PassThru) {
 				[psobject]$ExecuteResults = Execute-Process @ExecuteProcessSplat
@@ -2511,7 +2598,7 @@ Function Remove-MSIApplications {
 .PARAMETER PassThru
 	Returns ExitCode, STDOut, and STDErr output from the process.
 .PARAMETER ContinueOnError
-	Continue if an exit code is returned by msiexec that is not recognized by the App Deploy Toolkit. Default is: $true.
+	Continue if an error occured while trying to start the processes. Default: $true.
 .EXAMPLE
 	Remove-MSIApplications -Name 'Adobe Flash'
 	Removes all versions of software that match the name "Adobe Flash"
@@ -2600,10 +2687,6 @@ Function Remove-MSIApplications {
 		[Collections.ArrayList]$removeMSIApplications = New-Object -TypeName 'System.Collections.ArrayList'
 		If (($null -ne $installedApplications) -and ($installedApplications.Count)) {
 			ForEach ($installedApplication in $installedApplications) {
-				If ($installedApplication.UninstallString -notmatch 'msiexec') {
-					Write-Log -Message "Skipping removal of application [$($installedApplication.DisplayName)] because uninstall string [$($installedApplication.UninstallString)] does not match `"msiexec`"." -Severity 2 -Source ${CmdletName}
-					Continue
-				}
 				If ([string]::IsNullOrEmpty($installedApplication.ProductCode)) {
 					Write-Log -Message "Skipping removal of application [$($installedApplication.DisplayName)] because unable to discover MSI ProductCode from application's registry Uninstall subkey [$($installedApplication.UninstallSubkey)]." -Severity 2 -Source ${CmdletName}
 					Continue
@@ -2747,9 +2830,13 @@ Function Execute-Process {
 .PARAMETER MsiExecWaitTime
 	Specify the length of time in seconds to wait for the msiexec engine to become available. Default: 600 seconds (10 minutes).
 .PARAMETER IgnoreExitCodes
-	List the exit codes to ignore.
+	List the exit codes to ignore or * to ignore all exit codes.
+.PARAMETER PriorityClass	
+	Specifies priority class for the process. Options: Idle, Normal, High, AboveNormal, BelowNormal, RealTime. Default: Normal
+.PARAMETER ExitOnProcessFailure
+	Specifies whether the function should call Exit-Script when the process returns an exit code that is considered an error/failure. Default: $true
 .PARAMETER ContinueOnError
-	Continue if an exit code is returned by the process that is not recognized by the App Deploy Toolkit. Default: $false.
+	Continue if an error occured while trying to start the process. Default: $false.
 .EXAMPLE
 	Execute-Process -Path 'uninstall_flash_player_64bit.exe' -Parameters '/uninstall' -WindowStyle 'Hidden'
 	If the file is in the "Files" directory of the App Deploy Toolkit, only the file name needs to be specified.
@@ -2801,6 +2888,12 @@ Function Execute-Process {
 		[ValidateNotNullorEmpty()]
 		[string]$IgnoreExitCodes,
 		[Parameter(Mandatory=$false)]
+		[ValidateSet('Idle', 'Normal', 'High', 'AboveNormal', 'BelowNormal', 'RealTime')]
+		[Diagnostics.ProcessPriorityClass]$PriorityClass = 'Normal',
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[boolean]$ExitOnProcessFailure = $true,
+		[Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
 		[boolean]$ContinueOnError = $false
 	)
@@ -2818,7 +2911,11 @@ Function Execute-Process {
 			If (([IO.Path]::IsPathRooted($Path)) -and ([IO.Path]::HasExtension($Path))) {
 				Write-Log -Message "[$Path] is a valid fully qualified path, continue." -Source ${CmdletName}
 				If (-not (Test-Path -LiteralPath $Path -PathType 'Leaf' -ErrorAction 'Stop')) {
-					Throw "File [$Path] not found."
+					Write-Log -Message "File [$Path] not found." -Severity 3 -Source ${CmdletName}
+					If (-not $ContinueOnError) {
+						Throw "File [$Path] not found."
+					}
+					Return
 				}
 			}
 			Else {
@@ -2840,7 +2937,11 @@ Function Execute-Process {
 					$Path = $FullyQualifiedPath
 				}
 				Else {
-					Throw "[$Path] contains an invalid path or file name."
+					Write-Log -Message "[$Path] contains an invalid path or file name." -Severity 3 -Source ${CmdletName}
+					If (-not $ContinueOnError) {
+						Throw "[$Path] contains an invalid path or file name."
+					}
+					Return
 				}
 			}
 
@@ -2857,7 +2958,11 @@ Function Execute-Process {
 				If (-not $MsiExecAvailable) {
 					#  Default MSI exit code for install already in progress
 					[int32]$returnCode = 1618
-					Throw 'Please complete in progress MSI installation before proceeding with this install.'
+					Write-Log -Message "Another MSI installation is already in progress and needs to be completed before proceeding with this installation." -Severity 3 -Source ${CmdletName}
+					If (-not $ContinueOnError) {
+						Throw 'Another MSI installation is already in progress and needs to be completed before proceeding with this installation.'
+					}
+					Return
 				}
 			}
 
@@ -2887,6 +2992,8 @@ Function Execute-Process {
 				[scriptblock]$processEventHandler = { If (-not [string]::IsNullOrEmpty($EventArgs.Data)) { $Event.MessageData.AppendLine($EventArgs.Data) } }
 				$stdOutBuilder = New-Object -TypeName 'System.Text.StringBuilder' -ArgumentList ''
 				$stdOutEvent = Register-ObjectEvent -InputObject $process -Action $processEventHandler -EventName 'OutputDataReceived' -MessageData $stdOutBuilder -ErrorAction 'Stop'
+				$stdErrBuilder = New-Object -TypeName 'System.Text.StringBuilder' -ArgumentList ''
+				$stdErrEvent = Register-ObjectEvent -InputObject $process -Action $processEventHandler -EventName 'ErrorDataReceived' -MessageData $stdErrBuilder -ErrorAction 'Stop'
 
 				## Start Process
 				Write-Log -Message "Working Directory is [$WorkingDirectory]." -Source ${CmdletName}
@@ -2906,21 +3013,38 @@ Function Execute-Process {
 				Else {
 					Write-Log -Message "Executing [$Path]..." -Source ${CmdletName}
 				}
-				[boolean]$processStarted = $process.Start()
+
+				$null = $process.Start()
+
+				If ($PriorityClass -ne "Normal") {
+					try {
+						If ($process.HasExited -eq $False) {
+							Write-Log -Message "Changing the priority class for the process to [$PriorityClass]" -Source ${CmdletName}
+							$process.PriorityClass = $PriorityClass
+						}
+						Else {
+							Write-Log -Message "Cannot change the priority class for the process to [$PriorityClass], because the process has exited already." -Severity 2 -Source ${CmdletName}
+						}
+
+					}
+					catch {
+						Write-Log -Message "Failed to change the priority class for the process." -Severity 2 -Source ${CmdletName}
+					}
+				}
 
 				If ($NoWait) {
 					Write-Log -Message 'NoWait parameter specified. Continuing without waiting for exit code...' -Source ${CmdletName}
 				}
 				Else {
 					$process.BeginOutputReadLine()
-					$stdErr = $($process.StandardError.ReadToEnd()).ToString() -replace $null,''
-
+					$process.BeginErrorReadLine()
+					
 					## Instructs the Process component to wait indefinitely for the associated process to exit.
 					$process.WaitForExit()
-
+					
 					## HasExited indicates that the associated process has terminated, either normally or abnormally. Wait until HasExited returns $true.
 					While (-not ($process.HasExited)) { $process.Refresh(); Start-Sleep -Seconds 1 }
-
+					
 					## Get the exit code for the process
 					Try {
 						[int32]$returnCode = $process.ExitCode
@@ -2929,10 +3053,12 @@ Function Execute-Process {
 						#  Catch exit codes that are out of int32 range
 						[int32]$returnCode = 60013
 					}
-
-					## Unregister standard output event to retrieve process output
+					
+					## Unregister standard output and error event to retrieve process output
 					If ($stdOutEvent) { Unregister-Event -SourceIdentifier $stdOutEvent.Name -ErrorAction 'Stop'; $stdOutEvent = $null }
+					If ($stdErrEvent) { Unregister-Event -SourceIdentifier $stdErrEvent.Name -ErrorAction 'Stop'; $stdErrEvent = $null }
 					$stdOut = $stdOutBuilder.ToString() -replace $null,''
+					$stdErr = $stdErrBuilder.ToString() -replace $null,''
 
 					If ($stdErr.Length -gt 0) {
 						Write-Log -Message "Standard error output from the process: $stdErr" -Severity 3 -Source ${CmdletName}
@@ -2940,11 +3066,11 @@ Function Execute-Process {
 				}
 			}
 			Finally {
-				## Make sure the standard output event is unregistered
-				If ($stdOutEvent) { Unregister-Event -SourceIdentifier $stdOutEvent.Name -ErrorAction 'Stop'}
-
+				## Make sure the standard output and error event is unregistered
+				If ($stdOutEvent) { Unregister-Event -SourceIdentifier $stdOutEvent.Name -ErrorAction 'Stop'; $stdOutEvent = $null }
+				If ($stdErrEvent) { Unregister-Event -SourceIdentifier $stdErrEvent.Name -ErrorAction 'Stop'; $stdErrEvent = $null }
 				## Free resources associated with the process, this does not cause process to exit
-				If ($process) { $process.Close() }
+				If ($process) { $process.Dispose() }
 
 				## Re-enable Zone checking
 				Remove-Item -LiteralPath 'env:SEE_MASK_NOZONECHECKS' -ErrorAction 'SilentlyContinue'
@@ -2956,23 +3082,28 @@ Function Execute-Process {
 				## Check to see whether we should ignore exit codes
 				$ignoreExitCodeMatch = $false
 				If ($ignoreExitCodes) {
-					#  Split the processes on a comma
-					[int32[]]$ignoreExitCodesArray = $ignoreExitCodes -split ','
-					ForEach ($ignoreCode in $ignoreExitCodesArray) {
-						If ($returnCode -eq $ignoreCode) { $ignoreExitCodeMatch = $true }
+					## Check whether * was specified, which would tell us to ignore all exit codes
+					If ($ignoreExitCodes.Trim() -eq "*") {
+						$ignoreExitCodeMatch = $true
+					}
+					Else {
+						## Split the processes on a comma
+						[int32[]]$ignoreExitCodesArray = $ignoreExitCodes -split ','
+						ForEach ($ignoreCode in $ignoreExitCodesArray) {
+							If ($returnCode -eq $ignoreCode) { $ignoreExitCodeMatch = $true }
+						}
 					}
 				}
-				#  Or always ignore exit codes
-				If ($ContinueOnError) { $ignoreExitCodeMatch = $true }
 
 				## If the passthru switch is specified, return the exit code and any output from process
 				If ($PassThru) {
-					Write-Log -Message "Execution completed with exit code [$returnCode]." -Source ${CmdletName}
+					Write-Log -Message "-PassThru parameter specified, returning execution results object." -Source ${CmdletName}
 					[psobject]$ExecutionResults = New-Object -TypeName 'PSObject' -Property @{ ExitCode = $returnCode; StdOut = $stdOut; StdErr = $stdErr }
 					Write-Output -InputObject $ExecutionResults
 				}
-				ElseIf ($ignoreExitCodeMatch) {
-					Write-Log -Message "Execution complete and the exit code [$returncode] is being ignored." -Source ${CmdletName}
+
+				If ($ignoreExitCodeMatch) {
+					Write-Log -Message "Execution completed and the exit code [$returncode] is being ignored." -Source ${CmdletName}
 				}
 				ElseIf (($returnCode -eq 3010) -or ($returnCode -eq 1641)) {
 					Write-Log -Message "Execution completed successfully with exit code [$returnCode]. A reboot is required." -Severity 2 -Source ${CmdletName}
@@ -3002,7 +3133,10 @@ Function Execute-Process {
 					Else {
 						Write-Log -Message "Execution failed with exit code [$returnCode]." -Severity 3 -Source ${CmdletName}
 					}
-					Exit-Script -ExitCode $returnCode
+
+					If ($ExitOnProcessFailure) {
+						Exit-Script -ExitCode $returnCode
+					}
 				}
 			}
 		}
@@ -3010,15 +3144,20 @@ Function Execute-Process {
 			If ([string]::IsNullOrEmpty([string]$returnCode)) {
 				[int32]$returnCode = 60002
 				Write-Log -Message "Function failed, setting exit code to [$returnCode]. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+				If (-not $ContinueOnError) {
+					Throw "Function failed, setting exit code to [$returnCode]. `n$(Resolve-Error)"
+				}
 			}
 			Else {
 				Write-Log -Message "Execution completed with exit code [$returnCode]. Function failed. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
 			}
+
 			If ($PassThru) {
 				[psobject]$ExecutionResults = New-Object -TypeName 'PSObject' -Property @{ ExitCode = $returnCode; StdOut = If ($stdOut) { $stdOut } Else { '' }; StdErr = If ($stdErr) { $stdErr } Else { '' } }
 				Write-Output -InputObject $ExecutionResults
 			}
-			Else {
+
+			If ($ExitOnProcessFailure) {
 				Exit-Script -ExitCode $returnCode
 			}
 		}
@@ -3264,9 +3403,11 @@ Function Remove-Folder {
 .SYNOPSIS
 	Remove folder and files if they exist.
 .DESCRIPTION
-	Remove folder and all files recursively in a given path.
+	Remove folder and all files with or without recursion in a given path.
 .PARAMETER Path
 	Path to the folder to remove.
+.PARAMETER DisableRecursion
+	Disables recursion while deleting.
 .PARAMETER ContinueOnError
 	Continue if an error is encountered. Default is: $true.
 .EXAMPLE
@@ -3281,6 +3422,8 @@ Function Remove-Folder {
 		[ValidateNotNullorEmpty()]
 		[string]$Path,
 		[Parameter(Mandatory=$false)]
+		[switch]$DisableRecursion,
+		[Parameter(Mandatory=$false)]
 		[ValidateNotNullOrEmpty()]
 		[boolean]$ContinueOnError = $true
 	)
@@ -3293,8 +3436,14 @@ Function Remove-Folder {
 	Process {
 			If (Test-Path -LiteralPath $Path -PathType 'Container') {
 				Try {
-					Write-Log -Message "Delete folder [$path] recursively..." -Source ${CmdletName}
-					Remove-Item -LiteralPath $Path -Force -Recurse -ErrorAction 'SilentlyContinue' -ErrorVariable '+ErrorRemoveFolder'
+					If ($DisableRecursion) {
+						Write-Log -Message "Delete folder [$path] without recursion..." -Source ${CmdletName}
+						Remove-Item -LiteralPath $Path -Force -ErrorAction 'SilentlyContinue' -ErrorVariable '+ErrorRemoveFolder'
+					} else {
+						Write-Log -Message "Delete folder [$path] recursively..." -Source ${CmdletName}
+						Remove-Item -LiteralPath $Path -Force -Recurse -ErrorAction 'SilentlyContinue' -ErrorVariable '+ErrorRemoveFolder'
+					}
+
 					If ($ErrorRemoveFolder) {
 						Write-Log -Message "The following error(s) took place while deleting folder(s) and file(s) recursively from path [$path]. `n$(Resolve-Error -ErrorRecord $ErrorRemoveFolder)" -Severity 2 -Source ${CmdletName}
 					}
@@ -4494,6 +4643,8 @@ Function Get-FileVersion {
 	Gets the version of the specified file
 .PARAMETER File
 	Path of the file
+.PARAMETER ProductVersion
+	Switch that makes the command return ProductVersion instead of FileVersion
 .PARAMETER ContinueOnError
 	Continue if an error is encountered. Default is: $true.
 .EXAMPLE
@@ -4508,6 +4659,8 @@ Function Get-FileVersion {
 		[ValidateNotNullorEmpty()]
 		[string]$File,
 		[Parameter(Mandatory=$false)]
+		[switch]$ProductVersion,
+		[Parameter(Mandatory=$false)]
 		[ValidateNotNullOrEmpty()]
 		[boolean]$ContinueOnError = $true
 	)
@@ -4519,19 +4672,29 @@ Function Get-FileVersion {
 	}
 	Process {
 		Try {
-			Write-Log -Message "Get file version info for file [$file]." -Source ${CmdletName}
+			Write-Log -Message "Get version info for file [$file]." -Source ${CmdletName}
 
 			If (Test-Path -LiteralPath $File -PathType 'Leaf') {
-				$fileVersion = (Get-Command -Name $file -ErrorAction 'Stop').FileVersionInfo.FileVersion
-				If ($fileVersion) {
-					## Remove product information to leave only the file version
-					$fileVersion = ($fileVersion -split ' ' | Select-Object -First 1)
+				$fileVersionInfo = (Get-Command -Name $file -ErrorAction 'Stop').FileVersionInfo
+				If ($ProductVersion) {
+					$fileVersion = $fileVersionInfo.ProductVersion
+				} else {
+					$fileVersion = $fileVersionInfo.FileVersion
+				}
 
-					Write-Log -Message "File version is [$fileVersion]." -Source ${CmdletName}
+				If ($fileVersion) {
+					If ($ProductVersion) {
+						Write-Log -Message "Product version is [$fileVersion]." -Source ${CmdletName}
+					}
+					else
+					{
+						Write-Log -Message "File version is [$fileVersion]." -Source ${CmdletName}
+					}
+
 					Write-Output -InputObject $fileVersion
 				}
 				Else {
-					Write-Log -Message 'No file version information found.' -Source ${CmdletName}
+					Write-Log -Message 'No version information found.' -Source ${CmdletName}
 				}
 			}
 			Else {
@@ -4539,9 +4702,9 @@ Function Get-FileVersion {
 			}
 		}
 		Catch {
-			Write-Log -Message "Failed to get file version info. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
+			Write-Log -Message "Failed to get version info. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
 			If (-not $ContinueOnError) {
-				Throw "Failed to get file version info: $($_.Exception.Message)"
+				Throw "Failed to get version info: $($_.Exception.Message)"
 			}
 		}
 	}
@@ -4730,6 +4893,8 @@ Function Execute-ProcessAsUser {
 	Wait for the process, launched by the scheduled task, to complete execution before accepting more input. Default is $false.
 .PARAMETER PassThru
 	Returns the exit code from this function or the process launched by the scheduled task.
+.PARAMETER WorkingDirectory
+	Set working directory for the process.
 .PARAMETER ContinueOnError
 	Continue if an error is encountered. Default is $true.
 .EXAMPLE
@@ -4765,6 +4930,9 @@ Function Execute-ProcessAsUser {
 		[switch]$PassThru = $false,
 		[Parameter(Mandatory=$false)]
 		[ValidateNotNullOrEmpty()]
+		[string]$WorkingDirectory,
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullOrEmpty()]
 		[boolean]$ContinueOnError = $true
 	)
 
@@ -4784,9 +4952,7 @@ Function Execute-ProcessAsUser {
 			If (-not $ContinueOnError) {
 				Throw "The function [${CmdletName}] has a -UserName parameter that has an empty default value because no logged in users were detected when the toolkit was launched."
 			}
-			Else {
-				Return
-			}
+			Return
 		}
 
 		## Confirm if the toolkit is running with administrator privileges
@@ -4796,9 +4962,12 @@ Function Execute-ProcessAsUser {
 			If (-not $ContinueOnError) {
 				Throw "The function [${CmdletName}] requires the toolkit to be running with Administrator privileges if the [-RunLevel] parameter is set to 'HighestAvailable'."
 			}
-			Else {
-				Return
-			}
+			Return
+		}
+
+		## Check whether the specified Working Directory exists
+		If ($WorkingDirectory -and (-not (Test-Path -LiteralPath $WorkingDirectory -PathType 'Container'))) {
+			Write-Log -Message "The specified working directory does not exist or is not a directory. The scheduled task might not work as expected." -Severity 2 -Source ${CmdletName}
 		}
 
 		## Build the scheduled task XML name
@@ -4813,9 +4982,9 @@ Function Execute-ProcessAsUser {
 		If (($Path -eq 'PowerShell.exe') -or ((Split-Path -Path $Path -Leaf) -eq 'PowerShell.exe')) {
 			# Permit inclusion of double quotes in parameters
 			If ($($Parameters.Substring($Parameters.Length - 1)) -eq '"') {
-				[string]$executeProcessAsUserParametersVBS = 'chr(34) & ' + "`"$($Path)`"" + ' & chr(34) & ' + '" ' + ($Parameters -replace '"', "`" & chr(34) & `"" -replace ' & chr\(34\) & "$', '') + ' & chr(34)' }
+				[string]$executeProcessAsUserParametersVBS = 'chr(34) & ' + "`"$($Path)`"" + ' & chr(34) & ' + '" ' + ($Parameters -replace "`r`n", ';' -replace "`n", ';' -replace '"', "`" & chr(34) & `"" -replace ' & chr\(34\) & "$', '') + ' & chr(34)' }
 			Else {
-				[string]$executeProcessAsUserParametersVBS = 'chr(34) & ' + "`"$($Path)`"" + ' & chr(34) & ' + '" ' + ($Parameters -replace '"', "`" & chr(34) & `"" -replace ' & chr\(34\) & "$','') + '"' }
+				[string]$executeProcessAsUserParametersVBS = 'chr(34) & ' + "`"$($Path)`"" + ' & chr(34) & ' + '" ' + ($Parameters -replace "`r`n", ';' -replace "`n", ';' -replace '"', "`" & chr(34) & `"" -replace ' & chr\(34\) & "$','') + '"' }
 			[string[]]$executeProcessAsUserScript = "strCommand = $executeProcessAsUserParametersVBS"
 			$executeProcessAsUserScript += 'set oWShell = CreateObject("WScript.Shell")'
 			$executeProcessAsUserScript += 'intReturn = oWShell.Run(strCommand, 0, true)'
@@ -4825,6 +4994,11 @@ Function Execute-ProcessAsUser {
 			$Parameters = "`"$dirAppDeployTemp\$($schTaskName).vbs`""
 		}
 
+		## Prepare working directory insert
+		[string]$WorkingDirectoryInsert = ""
+		If ($WorkingDirectory) {
+			$WorkingDirectoryInsert = "`n	  <WorkingDirectory>$WorkingDirectory</WorkingDirectory>"
+		}
 		## Specify the scheduled task configuration in XML format
 		[string]$xmlSchTask = @"
 <?xml version="1.0" encoding="UTF-16"?>
@@ -4853,7 +5027,7 @@ Function Execute-ProcessAsUser {
   <Actions Context="Author">
 	<Exec>
 	  <Command>$Path</Command>
-	  <Arguments>$Parameters</Arguments>
+	  <Arguments>$Parameters</Arguments>$WorkingDirectoryInsert
 	</Exec>
   </Actions>
   <Principals>
@@ -4877,9 +5051,7 @@ Function Execute-ProcessAsUser {
 			If (-not $ContinueOnError) {
 				Throw "Failed to export the scheduled task XML file [$xmlSchTaskFilePath]: $($_.Exception.Message)"
 			}
-			Else {
-				Return
-			}
+			Return
 		}
 
 		## Create Scheduled Task to run the process with a logged-on user account
@@ -4901,9 +5073,7 @@ Function Execute-ProcessAsUser {
 			If (-not $ContinueOnError) {
 				Throw "Failed to create the scheduled task by importing the scheduled task XML file [$xmlSchTaskFilePath]."
 			}
-			Else {
-				Return
-			}
+			Return
 		}
 
 		## Trigger the Scheduled Task
@@ -4924,13 +5094,11 @@ Function Execute-ProcessAsUser {
 			Write-Log -Message "Failed to trigger scheduled task [$schTaskName]." -Severity 3 -Source ${CmdletName}
 			#  Delete Scheduled Task
 			Write-Log -Message 'Delete the scheduled task which did not trigger.' -Source ${CmdletName}
-			Execute-Process -Path $exeSchTasks -Parameters "/delete /tn $schTaskName /f" -WindowStyle 'Hidden' -CreateNoWindow -ContinueOnError $true
+			Execute-Process -Path $exeSchTasks -Parameters "/delete /tn $schTaskName /f" -WindowStyle 'Hidden' -CreateNoWindow -IgnoreExitCodes "*"
 			If (-not $ContinueOnError) {
 				Throw "Failed to trigger scheduled task [$schTaskName]."
 			}
-			Else {
-				Return
-			}
+			Return
 		}
 
 		## Wait for the process launched by the scheduled task to complete execution
@@ -5594,7 +5762,7 @@ Function Get-RunningProcesses {
 			[string[]]$processNames = $processObjects | ForEach-Object { $_.ProcessName }
 
 			## Get all running processes and escape special characters. Match against the process names to search for to find running processes.
-			[Diagnostics.Process[]]$runningProcesses = Get-Process | Where-Object { $processNames -contains $_.ProcessName }
+			[Diagnostics.Process[]]$runningProcesses = Get-Process | Where-Object { $processNames -contains $_.ProcessName } | Sort-Object Name -Unique
 
 			If ($runningProcesses) {
 				[string]$runningProcessList = ($runningProcesses | ForEach-Object { $_.ProcessName } | Select-Object -Unique) -join ','
@@ -6306,8 +6474,12 @@ Function Show-WelcomePrompt {
 			[timespan]$remainingTime = $countdownTime.Subtract($currentTime)
 			[string]$labelCountdownSeconds = [string]::Format('{0}:{1:d2}:{2:d2}', $remainingTime.Days * 24 + $remainingTime.Hours, $remainingTime.Minutes, $remainingTime.Seconds)
 			If ($forceCountdown -eq $true) {
-				If ($deploymentType -ieq 'Install') { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $($configDeploymentTypeInstall.ToLower())) + "`n$labelCountdownSeconds" }
-				Else { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $($configDeploymentTypeUninstall.ToLower())) + "`n$labelCountdownSeconds" }
+				switch ($deploymentType){
+					'Install' { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $($configDeploymentTypeInstall.ToLower())) + "`n$labelCountdownSeconds" }
+					'Uninstall' { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $($configDeploymentTypeUninstall.ToLower())) + "`n$labelCountdownSeconds" }
+					'Repair' { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $($configDeploymentTypeRepair.ToLower())) + "`n$labelCountdownSeconds" }
+					Default { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $($configDeploymentTypeInstall.ToLower())) + "`n$labelCountdownSeconds" }
+				}
 			}
 			Else { $labelCountdown.Text = "$configClosePromptCountdownMessage`n$labelCountdownSeconds" }
 		}
@@ -6341,8 +6513,12 @@ Function Show-WelcomePrompt {
 					#  Update the form
 					[string]$labelCountdownSeconds = [string]::Format('{0}:{1:d2}:{2:d2}', $remainingTime.Days * 24 + $remainingTime.Hours, $remainingTime.Minutes, $remainingTime.Seconds)
 					If ($forceCountdown -eq $true) {
-						If ($deploymentType -ieq 'Install') { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $configDeploymentTypeInstall) + "`n$labelCountdownSeconds" }
-						Else { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $configDeploymentTypeUninstall) + "`n$labelCountdownSeconds" }
+						switch ($deploymentType){
+							'Install' { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $configDeploymentTypeInstall) + "`n$labelCountdownSeconds" }
+							'Uninstall' { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $configDeploymentTypeUninstall) + "`n$labelCountdownSeconds" }
+							'Repair' { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $configDeploymentTypeRepair) + "`n$labelCountdownSeconds" }
+							Default { $labelCountdown.Text = ($configWelcomePromptCountdownMessage -f $configDeploymentTypeInstall) + "`n$labelCountdownSeconds" }
+						}
 					}
 					Else { $labelCountdown.Text = "$configClosePromptCountdownMessage`n$labelCountdownSeconds" }
 					[Windows.Forms.Application]::DoEvents()
@@ -7206,6 +7382,9 @@ Function Show-InstallationProgress {
 		If (($StatusMessage -eq $configProgressMessageInstall) -and ($deploymentType -eq 'Uninstall')) {
 			$StatusMessage = $configProgressMessageUninstall
 		}
+		If (($StatusMessage -eq $configProgressMessageInstall) -and ($deploymentType -eq 'Repair')) {
+			$StatusMessage = $configProgressMessageRepair
+		}
 
 		If ($envHost.Name -match 'PowerGUI') {
 			Write-Log -Message "$($envHost.Name) is not a supported host for WPF multi-threading. Progress dialog with message [$statusMessage] will not be displayed." -Severity 2 -Source ${CmdletName}
@@ -7540,7 +7719,7 @@ Function Set-PinnedApplication {
 					If ((Get-Item -Path $FilePath).Extension -ne '.lnk') {
 						Throw "Only shortcut files (.lnk) are supported on Windows 10 and higher."
 					}
-					ElseIf (-not ($FilePath.StartsWith($envUserStartMenu) -or $FilePath.StartsWith($envCommonStartMenu))) {
+					ElseIf (-not ($FilePath.StartsWith($envUserStartMenu, 'CurrentCultureIgnoreCase') -or $FilePath.StartsWith($envCommonStartMenu, 'CurrentCultureIgnoreCase'))) {
 						Throw "Only shortcut files (.lnk) in [$envUserStartMenu] and [$envCommonStartMenu] are supported on Windows 10 and higher."
 					}
 				}
@@ -8632,10 +8811,10 @@ Function Install-MSUpdates {
 				Write-Log -Message "Install [$redistDescription $redistVersion]..." -Source ${CmdletName}
 				#  Handle older redistributables (ie, VC++ 2005)
 				If ($redistDescription -match 'Win32 Cabinet Self-Extractor') {
-					Execute-Process -Path $file.FullName -Parameters '/q' -WindowStyle 'Hidden' -ContinueOnError $true
+					Execute-Process -Path $file.FullName -Parameters '/q' -WindowStyle 'Hidden' -IgnoreExitCodes "*"
 				}
 				Else {
-					Execute-Process -Path $file.FullName -Parameters '/quiet /norestart' -WindowStyle 'Hidden' -ContinueOnError $true
+					Execute-Process -Path $file.FullName -Parameters '/quiet /norestart' -WindowStyle 'Hidden' -IgnoreExitCodes "*"
 				}
 			}
 			Else {
@@ -8648,11 +8827,11 @@ Function Install-MSUpdates {
 					Write-Log -Message "KB Number [$KBNumber] was not detected and will be installed." -Source ${CmdletName}
 					Switch ($file.Extension) {
 						#  Installation type for executables (i.e., Microsoft Office Updates)
-						'.exe' { Execute-Process -Path $file.FullName -Parameters '/quiet /norestart' -WindowStyle 'Hidden' -ContinueOnError $true }
+						'.exe' { Execute-Process -Path $file.FullName -Parameters '/quiet /norestart' -WindowStyle 'Hidden' -IgnoreExitCodes "*" }
 						#  Installation type for Windows updates using Windows Update Standalone Installer
-						'.msu' { Execute-Process -Path 'wusa.exe' -Parameters "`"$($file.FullName)`" /quiet /norestart" -WindowStyle 'Hidden' -ContinueOnError $true }
+						'.msu' { Execute-Process -Path 'wusa.exe' -Parameters "`"$($file.FullName)`" /quiet /norestart" -WindowStyle 'Hidden' -IgnoreExitCodes "*" }
 						#  Installation type for Windows Installer Patch
-						'.msp' { Execute-MSI -Action 'Patch' -Path $file.FullName -ContinueOnError $true }
+						'.msp' { Execute-MSI -Action 'Patch' -Path $file.FullName -IgnoreExitCodes "*" }
 					}
 				}
 				Else {
@@ -10648,14 +10827,16 @@ If (-not $installTitle) {
 	[string]$installTitle = ("$appVendor $appName $appVersion").Trim()
 }
 
+## Set Powershell window title, in case the window is visible
+$Host.UI.RawUI.WindowTitle = "$installTitle - $DeploymentType"
+
 ## Sanitize the application details, as they can cause issues in the script
-[char[]]$invalidFileNameChars = [IO.Path]::GetInvalidFileNameChars()
-[string]$appVendor = $appVendor -replace "[$invalidFileNameChars]",'' -replace ' ',''
-[string]$appName = $appName -replace "[$invalidFileNameChars]",'' -replace ' ',''
-[string]$appVersion = $appVersion -replace "[$invalidFileNameChars]",'' -replace ' ',''
-[string]$appArch = $appArch -replace "[$invalidFileNameChars]",'' -replace ' ',''
-[string]$appLang = $appLang -replace "[$invalidFileNameChars]",'' -replace ' ',''
-[string]$appRevision = $appRevision -replace "[$invalidFileNameChars]",'' -replace ' ',''
+[string]$appVendor = (Remove-InvalidFileNameChars -Name $appVendor) -replace ' ',''
+[string]$appName = (Remove-InvalidFileNameChars -Name $appName) -replace ' ',''
+[string]$appVersion = (Remove-InvalidFileNameChars -Name $appVersion) -replace ' ',''
+[string]$appArch = (Remove-InvalidFileNameChars -Name $appArch) -replace ' ',''
+[string]$appLang = (Remove-InvalidFileNameChars -Name $appLang) -replace ' ',''
+[string]$appRevision = (Remove-InvalidFileNameChars -Name $appRevision) -replace ' ',''
 
 ## Build the Installation Name
 If ($ReferredInstallName) { [string]$installName = $ReferredInstallName }
@@ -10667,7 +10848,7 @@ If (-not $installName) {
 		[string]$installName = $appVendor + '_' + $appName + '_' + $appVersion + '_' + $appLang + '_' + $appRevision
 	}
 }
-[string]$installName = $installName -replace "[$invalidFileNameChars]",'' -replace ' ',''
+[string]$installName = (Remove-InvalidFileNameChars -Name $installName) -replace ' ',''
 [string]$installName = $installName.Trim('_') -replace '[_]+','_'
 
 ## Set the Defer History registry path
@@ -10968,6 +11149,7 @@ Switch ($deployMode) {
 Switch ($deploymentType) {
 	'Install'   { $deploymentTypeName = $configDeploymentTypeInstall }
 	'Uninstall' { $deploymentTypeName = $configDeploymentTypeUnInstall }
+	'Repair' { $deploymentTypeName = $configDeploymentTypeRepair }
 	Default { $deploymentTypeName = $configDeploymentTypeInstall }
 }
 If ($deploymentTypeName) { Write-Log -Message "Deployment type is [$deploymentTypeName]." -Source $appDeployToolkitName }
