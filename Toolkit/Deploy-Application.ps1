@@ -175,6 +175,14 @@ Try {
 			$appArch = 'x86'
 		}
 
+		# Expand variables in URIs
+		$uriCount = 0
+        do {
+            $packageUri[$uriCount] = ($ExecutionContext.InvokeCommand.ExpandString($packageUri[$uriCount]))
+            $uriCount++
+        }
+        while ($packageUri[$uriCount])
+
 		# Get filename from the URI
 		$packageFilename = (Split-Path -Path $packageUri[0] -Leaf)
 		
