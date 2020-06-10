@@ -108,45 +108,48 @@ Function Get-FileFromUri {
 				return ($false)
             }
             
-            $dlStartTime = Get-Date
-            Invoke-WebRequest -Uri $Uri[$uriCount] -OutFile $Destination -UseBasicParsing
-            
-            If ($?) {
-                Write-Log -Message ($Uri[$uriCount] + ' download completed in ' + $((Get-Date).Subtract($dlStartTime).Seconds) + ' second(s)')
-                # Verify SHA256 Hash if provided
+            Try {
+                $dlStartTime = Get-Date
+                $download = Invoke-WebRequest -Uri $Uri[$uriCount] -OutFile $Destination -UseBasicParsing -ErrorAction 'Continue'
 
-                If ($Sha256) {
-                    $DestinationSha256 = (Get-FileHash -Path $Destination -Algorithm 'SHA256')
-                    Write-Log -Message ('Checking hash of downloaded file')
-                    $hashMatch = ($DestinationSha256.Hash -eq $Sha256)
+                    If ($?) {
+                        Write-Log -Message ($Uri[$uriCount] + ' download completed in ' + $((Get-Date).Subtract($dlStartTime).Seconds) + ' second(s)')
 
-                    If ($hashMatch) {
-                        Write-Log -Message ('Downloaded file matached expected hash.')
-                        $dlSuccess = $true
+                        # Verify SHA256 Hash if provided
+                        If ($Sha256) {
+                            $DestinationSha256 = (Get-FileHash -Path $Destination -Algorithm 'SHA256')
+                            Write-Log -Message ('Checking hash of downloaded file')
+                            $hashMatch = ($DestinationSha256.Hash -eq $Sha256)
+    
+                            If ($hashMatch) {
+                                Write-Log -Message ('Downloaded file matached expected hash.')
+                                $dlSuccess = $true
+                            } else {
+                                Write-Log -Message ('Downloaded file did not match expected hash.')
+                                Write-Log -Message ('Expected hash was: ' + $Sha256)
+                                Write-Log -Message ('Downloaded hash was: ' + $DestinationSha256.Hash)
+                                # Delete wrong file to prevent usage of corrupt or malicious file
+                                Remove-Item -Path $Destination -Force
+                                $dlSuccess = $false
+                            }
+                        } else {
+                            Write-Log -Message ('Download completed successfully. No SHA256 to compare.')
+                            $dlSuccess = $true
+                        }
                     } else {
-                        Write-Log -Message ('Downloaded file did not match expected hash.')
-                        Write-Log -Message ('Expected hash was: ' + $Sha256)
-                        Write-Log -Message ('Downloaded hash was: ' + $DestinationSha256.Hash)
-                        #Delete wrong file to prevent usage of corrupt or malicious file
-                        Remove-Item -Path $Destination -Force
+                        # This else is redundant?
+                        Write-Log -Message ('Error with download.')
                         $dlSuccess = $false
                     }
 
-                }
-                else {
-                    Write-Log -Message ('Download completed successfully. No SHA256 to compare.')
-                    $dlSuccess = $true
-                }
+            } Catch {
+                $download = $_.Exception
+                Write-Log -Message ($download)
             }
 
-            else {
-                Write-Log -Message ('Error with download.')
-                $dlSuccess = $false
-            }
             $uriCount++
         }
         until ($dlSuccess -eq $true) # Download is successful
-
         return ($dlSuccess)
     }
 }
