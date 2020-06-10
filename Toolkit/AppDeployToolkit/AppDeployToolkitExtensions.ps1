@@ -162,7 +162,7 @@ Function Test-DotNet35 {
     Process {
         If (Test-Path -Path ('HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5')) {
             $dotNet45RegistryKey = (Get-RegistryKey -Key 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5')
-            If (($dotNet45RegistryKey.Installed) -eq 1) {
+            If (($dotNet45RegistryKey.Install) -eq 1) {
                 Write-Log -Message ('.NET Framework 3.5 found.')
                 return ([bool]$true)
             }
