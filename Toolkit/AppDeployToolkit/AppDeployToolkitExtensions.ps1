@@ -179,27 +179,13 @@ Function Install-DotNet35 {
     #End of parameters
     Process {
         Write-Log -Message ('Downloading .NET Framework 3.5')
-        $dotNetDownload = @{
-            Uri = 'https://download.microsoft.com/download/2/0/E/20E90413-712F-438C-988E-FDAA79A8AC3D/dotnetfx35.exe';
-            Destination = ($dirSupportFiles + '\' + 'dotnetfx35.exe');
-            Sha256 = '0582515BDE321E072F8673E829E175ED2E7A53E803127C50253AF76528E66BC1'
-        }
-        If (Get-FileFromUri @dotNetDownload) {
-            Write-Log -Message ('Installing .NET Framework 3.5')
-            If (Execute-Process -Path ($dirSupportFiles + '\' + 'dotnetfx35.exe') -Parameters ('/q /norestart')) {
-                Write-Log -Message ('.NET Framework 3.5 installed')
-                return ([bool]$true)
-            }
-            else {
-                Write-Log -Message ('Error installing .NET Framework 3.5')
-                return ([bool]$false)
-            }
+        Execute-Process -Path 'DISM.exe' -Parameters ('/Online /Enable-Feature /FeatureName:NetFx3 /All')
+        If ($?) {
+            Write-Log -Message ('.NET Framework 3.5 installed')
         }
         else {
-            Write-Log -Message ('Error downloading .NET Framework 3.5')
-            return ([bool]$false)
-        }        
-        
+            Write-Log -Message ('Error installing .NET Framework 3.5')
+        }
     }
 }
 
