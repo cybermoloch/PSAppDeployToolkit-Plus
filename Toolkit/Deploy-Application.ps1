@@ -115,9 +115,20 @@ Try {
 	$logFullPath = ($configToolkitLogDir + '\' + $logName)
 	$logFullPath | ConvertTo-Json | Out-File -FilePath ($dirSupportFiles + '\logFullPath.json') -Force
 
-	# Get exported environment variables from RMM platform
+	# Get exported environment variables from RMM platform and convert to single variables
 	if ($dirSupportFiles + '\rmmEnv.json') {
-		$rmmEnvironment = Get-Content -Path ($dirSupportFiles + '\rmmEnv.json')  | ConvertFrom-Json
+		$rmmEnv =  Get-Content -Path ($dirSupportFiles + '\rmmEnv.json') | ConvertFrom-Json
+
+		$rmmEnvHash = @{}
+		foreach ($property in $rmmEnv.PSObject.Properties) {
+			$rmmEnvHash[$property.Name] = $property.Value
+		}
+	
+		$rmmEnvHash.GetEnumerator() | ForEach-Object {
+			If (!(Test-Path $_.Name)) {
+				New-Variable -Name ($_.Name) -Value ($_.Value)
+			}
+		}
 	}
 	
 	$closeApps =  If ($deploySettings.appDetails.executables) { ($deploySettings.appDetails.executables -Join ',') }
@@ -306,7 +317,7 @@ Try {
 			}
 		}
 
-		If (($deploySettings.appDetails.associations[0].application -ine '') -and ($IsProcessUserInteractive)) {
+		If ( ($deploySettings.appDetails.associations) -and ($deploySettings.appDetails.associations[0].application -ine '') -and ($IsProcessUserInteractive)) {
 			$deploySettings.appDetails.associations | ForEach-Object -Process {Set-UserFta -Extension $_.extension -ApplicationId $_.application -Prompt}
 		}
 
