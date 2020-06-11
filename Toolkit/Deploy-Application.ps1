@@ -308,8 +308,9 @@ Try {
 		# Sets permissions to All USERS Desktop Items to Modify to they can by deleted by normal users
 		If ($deploySettings.appDetails.desktopItems) {
 			$deploySettings.appDetails.desktopItems | ForEach-Object -Process {
+				$itemName = ($ExecutionContext.InvokeCommand.ExpandString($PSItem))
 				$ntfsAccessParams = @{
-					Path = ($envCommonDesktop + '\' + $PSItem)
+					Path = ($envCommonDesktop + '\' + $itemName)
 					Account = 'NT AUTHORITY\Authenticated Users'
 					AccessRights = 'Modify'
 				}
