@@ -1,4 +1,5 @@
 # Bootstrap script for PSADT+
+# Tested and designed for Datto RMM
 # Version 2.2.1.0
 
 # REQUIRED PSADT files
@@ -33,7 +34,8 @@ If ($psadtCustomUri) {
     Invoke-WebRequest -Uri $psadtCustomUri -OutFile $psadtCustom
 }
 
-# Set temporary directory; Deploy-Application.exe doesn't work if in $PSScriptRoot
+# Set temporary directory; Deploy-Application.exe doesn't work if # in the actual
+# component subdirectory (C:\ProgramData\CentraStage\Packages\{GUID}#)
 $installerDir = 'C:\ProgramData\PSAppDeployToolkit\InstallerTemp'
 $psadtPath = ($installerDir + '\AppDeployToolkit')
 $psadtExtrasPath = ($psadtPath + '\Extras')
