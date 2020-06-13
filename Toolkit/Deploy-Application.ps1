@@ -111,10 +111,6 @@ Try {
 	#endregion
 	##* Do not modify section above
 
-	# Export file that containts the full log filename.
-	$logFullPath = ($configToolkitLogDir + '\' + $logName)
-	$logFullPath | ConvertTo-Json | Out-File -FilePath ($dirSupportFiles + '\logFullPath.json') -Force
-
 	# Get exported environment variables from RMM platform and convert to single variables
 	if ($dirSupportFiles + '\rmmEnv.json') {
 		$rmmEnv =  Get-Content -Path ($dirSupportFiles + '\rmmEnv.json') | ConvertFrom-Json

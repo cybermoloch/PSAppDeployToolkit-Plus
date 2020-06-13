@@ -1,5 +1,5 @@
 # Bootstrap script for PSADT+
-# Version 2.1.0.10
+# Version 2.2.1.0
 
 # REQUIRED PSADT files
 $psadtArchiveUri = ${Env:\PSADT_ArchiveURI}
@@ -12,8 +12,8 @@ $psadtBanner = 'AppDeployToolkitBanner.png'
 $psadtScript = 'Deploy-Application.ps1'
 $psadtSupport = 'SupportFiles.zip'
 $psadtFiles = 'Files.zip'
-$psadtBrandingUri = ${Env:\PSADT_BrandingURI}
-$psadtBranding = 'Branding.zip'
+$psadtCustomUri = ${Env:\PSADT_CustomURI}
+$psadtCustom = 'Custom.zip'
 
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -28,9 +28,9 @@ If ($psadtExtrasUri) {
     Invoke-WebRequest -Uri $psadtExtrasUri -OutFile $psadtExtras
 }
 
-If ($psadtBrandingUri) {
-    Write-Output ('Downloading ' + $psadtBrandingUri)
-    Invoke-WebRequest -Uri $psadtBrandingUri -OutFile $psadtBranding
+If ($psadtCustomUri) {
+    Write-Output ('Downloading ' + $psadtCustomUri)
+    Invoke-WebRequest -Uri $psadtCustomUri -OutFile $psadtCustom
 }
 
 # Set temporary directory; Deploy-Application.exe doesn't work if in $PSScriptRoot
@@ -62,12 +62,12 @@ if (Test-Path $installerDir) {
     }
 }
 
-foreach ($psadtItem in @($psadtArchive,$psadtExtras,$psadtBranding,$psadtSettings,$psadtBanner,$psadtScript,$psadtSupport,$psadtFiles)) {
+foreach ($psadtItem in @($psadtArchive,$psadtExtras,$psadtCustom,$psadtSettings,$psadtBanner,$psadtScript,$psadtSupport,$psadtFiles)) {
     If (Test-Path -Path $psadtItem) {
         Switch -exact ($psadtItem) {
             $psadtArchive { Expand-Archive -Path $psadtArchive -DestinationPath $installerDir -Force }
             $psadtExtras { Expand-Archive -Path $psadtExtras -DestinationPath $psadtExtrasPath -Force }
-            $psadtBranding { Expand-Archive -Path $psadtBranding -DestinationPath $psadtPath -Force }
+            $psadtCustom { Expand-Archive -Path $psadtCustom -DestinationPath $psadtPath -Force }
             $psadtSettings {Copy-Item -Path $psadtSettings -Destination $installerDir -Force}
             $psadtBanner {Copy-Item -Path $psadtBanner -Destination $psadtPath -Force}
             $psadtScript {Copy-Item -Path $psadtScript -Destination $installerDir -Force}
@@ -162,39 +162,48 @@ else {
 }
 
 # Get log from PSADT and dump to stdout for RMM
-If (Test-Path ($psadtSupportPath + '\logFullPath.json')) {
-    $logFullPath = (Get-Content -Path ($psadtSupportPath + '\logFullPath.json') | ConvertFrom-Json)
-    If (Test-Path ($logFullPath)) {
-        Write-Output ('')
-        Write-Output ('*******************************************************************************')
-        Write-Output ('*******************************************************************************')
-        Write-Output (Split-Path -Path $logFullPath -Leaf)
-        Write-Output ('*******************************************************************************')
-        Write-Output ('*******************************************************************************')
-        Write-Output ('')
-        Get-Content -Path ($logFullPath)
-        # Comment below to retain PSADT log in installtion log directory; MSI log will still remain regardless.
-        Remove-Item -Path ($logFullPath)
+# By default, PSADT log files are saved to $envWinDir\Logs\Software which doesn't exist here
+# Even if it did, since the logs are read and deleted by default, it would interfere with non-PSADT logs
+# Recommended to change location to ${Env:WINDIR}\Logs\Software\PSAppDeployToolkit and log type to Legacy
+[xml]$psadtConfigXml = Get-Content -Path ($psadtPath + '\AppDeployToolkitConfig.xml')
+$psadtLogPath = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_LogPath)
+Write-Output ('PASADT Log file location: ' + $psadtLogPath)
+$msiLogPath = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.MSI_Options.MSI_LogPath)
+Write-Output ('MSI Log file location: ' + $msiLogPath)
+$psadtLogFiles = @()
+
+If ($psadtLogPath -ne $msiLogPath) {
+    If (Test-Path ($msiLogPath)) {
+        $psadtLogFiles += (Get-ChildItem -Path $msiLogPath -Filter '*.log')
     }
     else {
-        Write-Error ('Log file not found.')
+        Write-Error ('Unable to retreive MSI log directory.')
     }
-} else {
-    Write-Error ('logFullPath.json not found: Unknown log location.')
 }
 
-
-    ## Get the MSI logs?
-<#
-	If ( Test-Path -Path ($msiLogFile) ) {
-		Write-Output ('*******************************************************************************')
-		Write-Output ('*******************************************************************************')
-        Write-Output ($msiLogFile)
-        Write-Output ('*******************************************************************************')
-        Write-Output ('*******************************************************************************')
-        Get-Contents -Path ($msiLogFile) | Write-Log # add to normal PSADT Log?
+If (Test-Path ($psadtLogPath)) {
+    $psadtLogFiles = (Get-ChildItem -Path $psadtLogPath -Filter '*.log')
+    $psadtLogFiles | ForEach-Object -Process { Write-Output ('Log file found: ' + $psadtLogFiles) }
+    $psadtLogFiles | ForEach-Object -Process {
+        If (Test-Path ($PSItem.FullName)) {
+            Write-Output ('')
+            Write-Output ('*******************************************************************************')
+            Write-Output ('*******************************************************************************')
+            Write-Output (Split-Path -Path $PSItem.FullName -Leaf)
+            Write-Output ('*******************************************************************************')
+            Write-Output ('*******************************************************************************')
+            Write-Output ('')
+            Get-Content -Path ($PSItem.FullName)
+            # Comment below to retain logs.
+            Remove-Item -Path ($PSItem.FullName)
+        }
+        else {
+            Write-Error ('Unable to read logfile.')
+        }
     }
-#>		
+} else {
+    Write-Error ('Unable to retreive log directory.')
+}
 
 # Get exitcode JSON from PSADT
 If (Test-Path ($psadtSupportPath + '\exitCode.json')) {
