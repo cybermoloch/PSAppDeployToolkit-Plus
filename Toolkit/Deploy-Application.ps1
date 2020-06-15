@@ -205,10 +205,12 @@ Try {
 		Switch -exact ($packageFileType)
 		{
 			'msi' { $destinationPath = $dirFiles }
+			'msix' { $destinationPath = $dirFiles }
+			'msixbundle' { $destinationPath = $dirFiles }
 			'exe' { $destinationPath = $dirFiles }
 			'zip' { $destinationPath = $dirSupportFiles }
 			default {
-				Write-Log -Message 'The installer package type was unknown. (Not an .msi, .exe or .zip file.)'
+				Write-Log -Message 'The installer package type was unknown. (Not an .msi, .msix, .msixbundle, .exe or .zip file.)'
 				Show-InstallationPrompt -Message 'Invalid installer package filetype specified. Please contact your system adminstrator for assistance.' -Icon Error -Timeout 60 -ButtonRight 'OK'
 				Exit-Script -ExitCode -1
 			}
