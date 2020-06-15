@@ -259,6 +259,85 @@ Function Install-DotNet4x {
     }
 }
 
+Function Test-DotNetCore {
+    [cmdletbinding()]
+    Param (
+        [Parameter(Position=0,Mandatory=$true)]
+        [string]$MinVersion
+    )
+    #End of parameters
+    Process {
+        If ($appArch -eq 'x86') {
+            # PSAppDeployKit always populates $envProgramFilesX86 even on 32-bit
+            $dotNetCorePath = ($envProgramFilesX86 + '\dotnet\shared\Microsoft.NETCore.App')
+        }
+        else {
+            $dotNetCorePath = ($envProgramFiles + '\dotnet\shared\Microsoft.NETCore.App')
+        }
+        If (Test-Path -Path $dotNetCorePath) {
+            $dotNetCoreVersions = ( Get-ChildItem -Path $dotNetCorePath -Directory )
+            If ([version]$dotNetCoreVersions[-1].Name -ge [version]$MinVersion) {
+                Write-Log -Message ('.NET Core ' + $dotNetCoreVersions[-1] + ' installed')
+                return ([bool]$true)
+            }
+            else {
+                Write-Log -Message ('.NET Core ' + $MinVersion + ' not installed')
+                return ([bool]$false)                
+            }
+        }
+        else {
+            Write-Log -Message ('.NET Core not installed')
+            return ([bool]$false)
+        }
+    }
+}
+
+Function Install-DotNetCore {
+    [cmdletbinding()]
+    Param ()
+    Process {
+        Write-Log -Message ('Downloading .NET Core Desktop Runtime')
+        
+        $dotNetCoreDownloadx86 = @{
+            Uri = 'https://download.visualstudio.microsoft.com/download/pr/df7b90d9-b93e-4974-85ef-c1de418bc186/e380e58bbd8505ebaee6c3abb23baade/windowsdesktop-runtime-3.1.5-win-x86.exe';
+            Destination = ($dirSupportFiles + '\' + 'windowsdesktop-runtime-3.1.5-win-x86.exe');
+            Sha256 = 'C314832BB5E090B40DC1CC2EEFEE664051F1A5D7DC8A9C4C61E9E2378656581F'
+        }
+
+        $dotNetCoreDownloadx64 = @{
+            Uri = 'https://download.visualstudio.microsoft.com/download/pr/86835fe4-93b5-4f4e-a7ad-c0b0532e407b/f4f2b1239f1203a05b9952028d54fc13/windowsdesktop-runtime-3.1.5-win-x64.exe';
+            Destination = ($dirSupportFiles + '\' + 'windowsdesktop-runtime-3.1.5-win-x64.exe');
+            Sha256 = 'A73148AC46C64F8217F3EBC6F2F9A873A9243BE692829691314B921838F0C05B'
+        }
+
+        If ($AppArch -eq 'x64') {
+            $dotNetCoreDownload = $dotNetCoreDownloadx64
+        }
+        Elseif ($AppArch -eq 'x86') {
+            $dotNetCoreDownload = $dotNetCoreDownloadx86
+        }
+        Else {
+            Write-Log -Message ('Unknown $AppArch: ' + $AppArch + ' Cannot install .NET Core')
+        }
+
+        If (Get-FileFromUri @dotNetCoreDownload) {
+            Write-Log -Message ('Installing .NET Core 3.1.5')
+            If (Execute-Process -Path ($dirSupportFiles + '\windowsdesktop-runtime-3.1.5-win-' + $appArch + '.exe') -Parameters ('/install /quiet /norestart')) {
+                Write-Log -Message ('.NET Framework Core Desktop Runtime installed')
+                return ([bool]$true)
+            }
+            else {
+                Write-Log -Message ('Error installing .NET Core Desktop Runtime')
+                return ([bool]$false)
+            }
+        }
+        else {
+            Write-Log -Message ('Error downloading .NET Core Desktop Runtime')
+            return ([bool]$false)
+        }
+    }
+}
+
 # Checks for installed Visual Studio Redistributables
 # Requires VcRedist PowerShell Module
 # Simplifies command to return $true/$false for specified version 

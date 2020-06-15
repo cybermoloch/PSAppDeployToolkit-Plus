@@ -257,7 +257,19 @@ Try {
 			else {
 				Write-Log -Message ('.NET Framework ' + ($deploySettings.appDetails.dotNet4x.MinVersion) + ' is installed')
 			}
-		}		
+		}
+		
+		If ($deploySettings.appDetails.dotNetCore.required) {
+			Write-Log -Message ('.NET Core Runtime ' + ($deploySettings.appDetails.dotNetCore.minVersion) + ' required')
+			If ( -Not (Test-DotNetCore -MinVersion $deploySettings.appDetails.dotNetCore.minVersion) ) {
+				Write-Log -Message ('.NET Core Runtime ' + ($deploySettings.appDetails.dotNetCore.minVersion) + ' was not found. Attempting to install .NET Core')
+				Show-InstallationProgress -StatusMessage ('Installing .NET Core Runtime')
+				Install-DotNetCore
+			}
+			else {
+				Write-Log -Message ('.NET Core Runtime ' + ($deploySettings.appDetails.dotNetCore.MinVersion) + ' is already installed')
+			}
+		}	
 		
 		If ($deploySettings.appDetails.vcRedist.required) {
 			$vcRedistParams = @{
