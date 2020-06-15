@@ -207,10 +207,12 @@ Try {
 			'msi' { $destinationPath = $dirFiles }
 			'msix' { $destinationPath = $dirFiles }
 			'msixbundle' { $destinationPath = $dirFiles }
+			'appx' { $destinationPath = $dirFiles }
+			'appxbundle' { $destinationPath = $dirFiles }
 			'exe' { $destinationPath = $dirFiles }
 			'zip' { $destinationPath = $dirSupportFiles }
 			default {
-				Write-Log -Message 'The installer package type was unknown. (Not an .msi, .msix, .msixbundle, .exe or .zip file.)'
+				Write-Log -Message 'The installer package type was unknown. (Not an .msi, .msix(bundle), .appx(bundle) .exe, or .zip file.)'
 				Show-InstallationPrompt -Message 'Invalid installer package filetype specified. Please contact your system adminstrator for assistance.' -Icon Error -Timeout 60 -ButtonRight 'OK'
 				Exit-Script -ExitCode -1
 			}
