@@ -127,7 +127,8 @@ Try {
 		}
 	}
 	
-	$closeApps =  If ($deploySettings.appDetails.executables) { ($deploySettings.appDetails.executables -Join ',') }
+	If ($deploySettings.appDetails.executables) { $closeApps = ($deploySettings.appDetails.executables -Join ',') }
+	$requiredDiskSpace = ($deploySettings.appDetails.reqSpaceMb)
 
 	##*===============================================
 	##* END VARIABLE DECLARATION
@@ -140,8 +141,14 @@ Try {
 		[string]$installPhase = 'Pre-Installation'
 
 		## Show Welcome Message, close Internet Explorer if required, allow up to 3 deferrals, verify there is enough disk space to complete the install, and persist the prompt
-		$requiredDiskSpace = ($deploySettings.appDetails.reqSpaceMb)
-		Show-InstallationWelcome -CloseApps { If ($closeApps) {$closeApps} } -CheckDiskSpace -RequiredDiskSpace $requiredDiskSpace
+		
+		If ($closeApps) {
+			Show-InstallationWelcome -CloseApps $closeApps -CheckDiskSpace -RequiredDiskSpace $requiredDiskSpace
+		}
+		Else {
+			Show-InstallationWelcome -CheckDiskSpace -RequiredDiskSpace $requiredDiskSpace
+		}
+		
 		
 		## Show Progress Message (with the default message)
 		Show-InstallationProgress
@@ -351,7 +358,12 @@ Try {
 		[string]$installPhase = 'Pre-Uninstallation'
 
 		## Show Welcome Message, close Internet Explorer with a 60 second countdown before automatically closing
-		Show-InstallationWelcome -CloseApps { If ($closeApps) {$closeApps} } -CloseAppsCountdown 60
+		If ($closeApps) {
+			Show-InstallationWelcome -CloseApps $closeApps -CloseAppsCountdown 60
+		}
+		Else {
+			Show-InstallationWelcome
+		}
 
 		## Show Progress Message (with the default message)
 		Show-InstallationProgress
