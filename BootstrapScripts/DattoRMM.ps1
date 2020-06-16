@@ -1,12 +1,12 @@
 # Bootstrap script for PSADT+
 # Tested and designed for Datto RMM
-# Version 2.2.1.0
+# Version 3.0.0.0
 
 # REQUIRED PSADT files
 $psadtArchiveUri = ${Env:\PSADT_ArchiveURI}
 $psadtArchive = 'PSAppDeployToolkit.zip'
 $psadtExtrasUri = ${Env:\PSADT_ExtrasURI}
-$psadtExtras = 'Extras.zip'
+$psadtExtras = 'PSADTExtras.zip'
 $psadtSettings = 'Deploy-Application.json'
 # OPTIONAL PSADT files
 $psadtBanner = 'AppDeployToolkitBanner.png'
@@ -14,33 +14,52 @@ $psadtScript = 'Deploy-Application.ps1'
 $psadtSupport = 'SupportFiles.zip'
 $psadtFiles = 'Files.zip'
 $psadtCustomUri = ${Env:\PSADT_CustomURI}
-$psadtCustom = 'Custom.zip'
+$psadtCustom = 'PSADTCustom.zip'
 
+$psadtHomePath = (${Env:\ProgramData} + '\PSAppDeployToolkit')
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$ProgressPreference = 'SilentlyContinue'
 
-If ( (-Not (Test-Path $psadtArchive) ) -and ($psadtArchiveUri) ) {
+If ( (-Not (Test-Path -Path $psadtArchive) ) -and ($psadtArchiveUri) ) {
     Write-Output ('Downloading ' + $psadtArchiveUri)
-    Invoke-WebRequest -Uri $psadtArchiveUri -OutFile $psadtArchive
+    Invoke-WebRequest -Uri $psadtArchiveUri -OutFile $psadtArchive -UseBasicParsing
+    Copy-Item -Path $psadtArchive -Destination ($psadtHomePath + '\' + $psadtArchive) -Force
 }
 
-If ($psadtExtrasUri) {
+If ( (-Not (Test-Path -Path $psadtExtras) ) -and ($psadtExtrasUri) ) {
     Write-Output ('Downloading ' + $psadtExtrasUri)
-    Invoke-WebRequest -Uri $psadtExtrasUri -OutFile $psadtExtras
+    Invoke-WebRequest -Uri $psadtExtrasUri -OutFile $psadtExtras -UseBasicParsing
+    Copy-Item -Path $psadtExtras -Destination ($psadtHomePath + '\' + $psadtExtras) -Force
 }
 
-If ($psadtCustomUri) {
+If ( (-Not (Test-Path -Path $psadtCustom) ) -and ($psadtCustomUri) ) {
     Write-Output ('Downloading ' + $psadtCustomUri)
-    Invoke-WebRequest -Uri $psadtCustomUri -OutFile $psadtCustom
+    Invoke-WebRequest -Uri $psadtCustomUri -OutFile $psadtCustom -UseBasicParsing
+    Copy-Item -Path $psadtCustom -Destination ($psadtHomePath + '\' + $psadtCustom) -Force
 }
 
-# Set temporary directory; Deploy-Application.exe doesn't work if # in the actual
-# component subdirectory (C:\ProgramData\CentraStage\Packages\{GUID}#)
-$installerDir = 'C:\ProgramData\PSAppDeployToolkit\InstallerTemp'
-$psadtPath = ($installerDir + '\AppDeployToolkit')
+# Set temporary install directory; Deploy-Application.exe doesn't work if in
+# the component subdirectory (C:\ProgramData\CentraStage\Packages\{GUID}#)
+If (Test-Path -Path $psadtSettings) {
+    $deploymentSettings = Get-Content -Path $psadtSettings | ConvertFrom-Json
+    If ($deploymentSettings.psadtVariables.appId) {
+        $appId = $deploymentSettings.psadtVariables.appId
+        $installPath = ($psadtHomePath + '\' + $appId)
+    }
+    Else {
+        $installPath = ($psadtHomePath + '\InstallTemp')
+    }
+}
+Else {
+    Write-Error -Message ($psadtSettings + ' file is missing. Cannot continue.')
+    Exit -1
+}
+
+$psadtPath = ($installPath + '\AppDeployToolkit')
 $psadtExtrasPath = ($psadtPath + '\Extras')
-$psadtSupportPath = ($installerDIr + '\SupportFiles')
-$psadtFilesPath = ($installerDIr + '\Files')
+$psadtSupportPath = ($installPath + '\SupportFiles')
+$psadtFilesPath = ($installPath + '\Files')
 
 # Runs PsExec.exe with -i so PSADT has more magic
 $psExecPath = ($psadtPath + '\Extras\PsExec.exe')
@@ -50,9 +69,9 @@ $psExecArgs = '-s -i -accepteula -nobanner "'
 
 # Remove installation directory to ensure old installations don't cause issues
 # This might happen if a previous install did exit cleanly
-if (Test-Path $installerDir) {
-    Write-Warning ('Previous ' + $installerDir + ' found. Attempting force delete.')
-    Remove-Item -Path $installerDir -Force -Recurse
+if (Test-Path $installPath) {
+    Write-Warning ('Previous ' + $installPath + ' found. Attempting force delete.')
+    Remove-Item -Path $installPath -Force -Recurse
 }
 
 # Creates the Files and SupportFiles directories in case the archive does not have them
@@ -67,28 +86,41 @@ if (Test-Path $installerDir) {
 foreach ($psadtItem in @($psadtArchive,$psadtExtras,$psadtCustom,$psadtSettings,$psadtBanner,$psadtScript,$psadtSupport,$psadtFiles)) {
     If (Test-Path -Path $psadtItem) {
         Switch -exact ($psadtItem) {
-            $psadtArchive { Expand-Archive -Path $psadtArchive -DestinationPath $installerDir -Force }
+            $psadtArchive { Expand-Archive -Path $psadtArchive -DestinationPath $installPath -Force }
             $psadtExtras { Expand-Archive -Path $psadtExtras -DestinationPath $psadtExtrasPath -Force }
             $psadtCustom { Expand-Archive -Path $psadtCustom -DestinationPath $psadtPath -Force }
-            $psadtSettings {Copy-Item -Path $psadtSettings -Destination $installerDir -Force}
+            $psadtSettings {Copy-Item -Path $psadtSettings -Destination $installPath -Force}
             $psadtBanner {Copy-Item -Path $psadtBanner -Destination $psadtPath -Force}
-            $psadtScript {Copy-Item -Path $psadtScript -Destination $installerDir -Force}
+            $psadtScript {Copy-Item -Path $psadtScript -Destination $installPath -Force}
             $psadtSupport {Expand-Archive -Path $psadtSupport -DestinationPath $psadtSupportPath -Force}
             $psadtFiles {Expand-Archive -Path $psadtFiles -DestinationPath $psadtFilesPath -Force}
         }
         Write-Output ($psadtItem + ' was found')
     }
-    else {
+    Else {
         Write-Warning ($psadtItem + ' not found')
-        If (($psadtItem -like $psadtArchive) -or ($psadtItem -like $psadtSettings) -or ($psadtItem -like $psadtExtras)) {
-            Write-Error ($psadtItem + ' is a required file. Exiting.')
-            Exit -1
+        If ( ($psadtItem -like $psadtArchive) -or ($psadtItem -like $psadtCustom) -or ($psadtItem -like $psadtExtras) ) {
+            If ( Test-Path -Path ($psadtHomePath + '\' + $psadtItem) ) {
+                Switch -exact ($psadItem) {
+                    $psadtArchive { Expand-Archive -Path ($psadtHomePath + '\' + $psadtArchive) -DestinationPath $installPath -Force }
+                    $psadtExtras { Expand-Archive -Path ($psadtHomePath + '\' + $psadtExtras) -DestinationPath $psadtExtrasPath -Force }
+                    $psadtCustom { Expand-Archive -Path ($psadtHomePath + '\' + $psadtCustom) -DestinationPath $psadtPath -Force }    
+                }
+                Write-Output ($psadtItem + ' was found in '+ $psadtHomePath)
+                Else {
+                    Write-Warning ($psadtItem + ' not found in ' + $psadtHomePath)
+                    If (($psadtItem -like $psadtArchive) -or ($psadtItem -like $psadtExtras)) {
+                        Write-Error ($psadtItem + ' is a required file. Exiting.')
+                        Exit -1
+                    }
+
+                }
+            }
         }
     }
 }
 
 # Export needed RMM Environment Variables to JSON for use in PSADT
-$deploymentSettings = Get-Content -Path $psadtSettings | ConvertFrom-Json
 if ($deploymentSettings.rmmVariables) {
     Write-Output ('Attempting export of ' + ($deploymentSettings.rmmVariables -Join ',') + ' variables to JSON file.')
     $rmmEnv = New-Object -TypeName psobject
@@ -151,12 +183,12 @@ if ((Get-WmiObject -Class win32_computersystem).UserName) {
 }
 
 # Setup complete commandline arguments to pass to PsExec.exe
-$psExecArgs = ($psExecArgs + $installerDir + '\Deploy-Application.exe" "' + $psadtType + ' ' + $psadtMode + '"')
+$psExecArgs = ($psExecArgs + $installPath + '\Deploy-Application.exe" "' + $psadtType + ' ' + $psadtMode + '"')
 
 # Beings the installtion Program
 if (Test-Path $psExecPath) {
     Write-Output ('Starting installer program with the command: ' + $psExecPath + ' ' + $psExecArgs)
-    Start-Process -FilePath $psExecPath -ArgumentList $psExecArgs -WorkingDirectory $installerDir -Wait
+    Start-Process -FilePath $psExecPath -ArgumentList $psExecArgs -WorkingDirectory $installPath -Wait
     }
 else {
     Write-Warning ('Running installer failed. ' + $psExecPath + ' not found')
@@ -213,11 +245,11 @@ If (Test-Path ($psadtSupportPath + '\exitCode.json')) {
 }
 
 # Clean-up temporary installation directory
-if (Test-Path $installerDir) {
+if (Test-Path $installPath) {
     Write-Output ('')
     Write-Output ('*******************************************************************************')
     Write-Output ('Removing temporary installation directory.')
-    Remove-Item -Path $installerDir -Force -Recurse
+    Remove-Item -Path $installPath -Force -Recurse
 }
 
 if ($psadtExitCode) {
