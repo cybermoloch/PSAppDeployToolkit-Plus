@@ -1,6 +1,6 @@
 # Bootstrap script for PSADT+
 # Tested and designed for Datto RMM
-# Version 3.0.1.0
+# Version 3.0.2.0
 
 # REQUIRED PSADT files
 $psadtArchiveUri = ${Env:\PSADT_ArchiveURI}
@@ -15,6 +15,15 @@ $psadtSupport = 'SupportFiles.zip'
 $psadtFiles = 'Files.zip'
 $psadtCustomUri = ${Env:\PSADT_CustomURI}
 $psadtCustom = 'PSADTCustom.zip'
+
+# Will push these log locations to the XML configuration
+# By default, PSADT log files are saved to $envWinDir\Logs\Software which doesn't exist here
+# Even if it did, since the logs are read and deleted by default, it would interfere with non-PSADT logs
+# Recommended to change location to ${Env:WINDIR}\Logs\Software\PSAppDeployToolkit
+# Using ${Env:\} for environment variables will work here and PSADT
+$psadtLogPath = '${Env:WINDIR}\Logs\Software\PSAppDeployToolkit'
+$psadtLogPathNoAdmin = '${Env:ProgramData}\Logs\Software\PSAppDeployToolkit'
+$msiLogPath = '${Env:WINDIR}\Logs\Software\PSAppDeployToolkit'
 
 $psadtHomePath = (${Env:\ProgramData} + '\PSAppDeployToolkit')
 
@@ -120,6 +129,35 @@ foreach ($psadtItem in @($psadtArchive,$psadtExtras,$psadtCustom,$psadtSettings,
     }
 }
 
+# If logfile paths are specified at the top, push them to the config
+# Forces logfile type to be Legacy
+If (Test-Path -Path ($psadtPath + '\AppDeployToolkitConfig.xml')) {
+    [xml]$psadtConfigXml = Get-Content -Path ($psadtPath + '\AppDeployToolkitConfig.xml')
+    $psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_LogStyle = 'Legacy'
+    If ($psadtLogPath) {
+        Write-Output ('Push Log file location: ' + $psadtLogPath)
+        $psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_LogPath = $psadtLogPath
+    }   
+    If ($psadtLogPathNoAdmin) {
+        Write-Output ('Push NoAdmin Log file location: ' + $psadtLogPathNoAdmin)
+        $psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_NoAdminRights = $psadtLogPathNoAdmin
+    }
+    If ($msiLogPath) {
+        Write-Output ('Pushing MSI Log file location: ' + $msiLogPath)
+        $psadtConfigXml.AppDeployToolkit_Config.MSI_Options.MSI_LogPath = $msiLogPath
+    }
+    $psadtConfigXml.Save($psadtPath + '\AppDeployToolkitConfig.xml')
+}
+
+# Reads the XML Configuration to confirm log locations; pushed or otherwise
+$psadtLogPath = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_LogPath)
+Write-Output ('PASADT Log file location: ' + $psadtLogPath)
+$psadtLogPathNoAdmin = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_NoAdminRights)
+Write-Output ('PASADT NoAdmin Log file location: ' + $psadtLogPathNoAdmin)
+$msiLogPath = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.MSI_Options.MSI_LogPath)
+Write-Output ('MSI Log file location: ' + $msiLogPath)
+
+
 # Export needed RMM Environment Variables to JSON for use in PSADT
 if ($deploymentSettings.rmmVariables) {
     Write-Output ('Attempting export of ' + ($deploymentSettings.rmmVariables -Join ',') + ' variables to JSON file.')
@@ -202,17 +240,26 @@ else {
 $psadtExitCode = $psExecProcess.ExitCode
 
 # Get log from PSADT and dump to stdout for RMM
-# By default, PSADT log files are saved to $envWinDir\Logs\Software which doesn't exist here
-# Even if it did, since the logs are read and deleted by default, it would interfere with non-PSADT logs
-# Recommended to change location to ${Env:WINDIR}\Logs\Software\PSAppDeployToolkit and log type to Legacy
-[xml]$psadtConfigXml = Get-Content -Path ($psadtPath + '\AppDeployToolkitConfig.xml')
-$psadtLogPath = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_LogPath)
-Write-Output ('PASADT Log file location: ' + $psadtLogPath)
-$msiLogPath = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.MSI_Options.MSI_LogPath)
-Write-Output ('MSI Log file location: ' + $msiLogPath)
+
 $psadtLogFiles = @()
 
-If ($psadtLogPath -ne $msiLogPath) {
+If (Test-Path ($psadtLogPath)) {
+    $psadtLogFiles = (Get-ChildItem -Path $psadtLogPath -Filter '*.log')
+}
+else {
+    Write-Error ('Unable to retreive log directory.')
+}
+
+If ( ($psadtLogPathNoAdmin -ne $psadtLogPath) -and ($psadtLogPathNoAdmin -ne $msiLogPath) ) {
+    If (Test-Path ($psadtLogPathNoAdmin)) {
+        $psadtLogFiles += (Get-ChildItem -Path $psadtLogPathNoAdmin -Filter '*.log')
+    }
+    else {
+        Write-Error ('Unable to retreive NoAdmin log directory.')
+    }
+}
+
+If ( ($msiLogPath -ne $psadtLogPath) -and ($msiLogPath -ne $psadtLogPathNoAdmin) ) {
     If (Test-Path ($msiLogPath)) {
         $psadtLogFiles += (Get-ChildItem -Path $msiLogPath -Filter '*.log')
     }
@@ -221,9 +268,8 @@ If ($psadtLogPath -ne $msiLogPath) {
     }
 }
 
-If (Test-Path ($psadtLogPath)) {
-    $psadtLogFiles = (Get-ChildItem -Path $psadtLogPath -Filter '*.log')
-    $psadtLogFiles | ForEach-Object -Process { Write-Output ('Log file found: ' + $psadtLogFiles) }
+If ($psadtLogFiles) {
+    $psadtLogFiles | ForEach-Object -Process { Write-Output ('Log file found: ' + $PSItem.Name) }
     $psadtLogFiles | ForEach-Object -Process {
         If (Test-Path ($PSItem.FullName)) {
             Write-Output ('')
@@ -238,7 +284,7 @@ If (Test-Path ($psadtLogPath)) {
             Remove-Item -Path ($PSItem.FullName)
         }
         else {
-            Write-Error ('Unable to read logfile.')
+            Write-Error ('Unable to read logfile: ' + $PSItem.Name)
         }
     }
 } else {
