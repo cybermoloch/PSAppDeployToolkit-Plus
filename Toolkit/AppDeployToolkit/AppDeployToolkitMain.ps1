@@ -1230,10 +1230,6 @@ Function Exit-Script {
 
 	If ($script:notifyIcon) { Try { $script:notifyIcon.Dispose() } Catch {} }
 
-	## Dump the exit code to JSON file in case launched through separate process
-	## This allows the bootstrap script to provide the same exitcode to the RMM task
-	$exitCode | ConvertTo-Json | Out-File -FilePath ($dirSupportFiles + '\exitCode.json') -Force
-
 	## Reset powershell window title to its previous title
 	$Host.UI.RawUI.WindowTitle = $oldPSWindowTitle
 
