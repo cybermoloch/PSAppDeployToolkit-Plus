@@ -1,6 +1,6 @@
 # Bootstrap script for PSADT+
 # Tested and designed for Datto RMM
-# Version 3.0.2.0
+# Version 3.0.3.0
 
 # REQUIRED PSADT files
 $psadtArchiveUri = ${Env:\PSADT_ArchiveURI}
@@ -61,8 +61,14 @@ If (Test-Path -Path $psadtSettings) {
     }
 }
 Else {
-    Write-Error -Message ($psadtSettings + ' file is missing. Cannot continue.')
-    Exit -1
+    If (Test-Path -Path $psadtScript) {
+        Write-Warning -Message ($psadtSettings + ' not found; Using ' + $psadtScript)
+        $installPath = ($psadtHomePath + '\InstallTemp')
+    }
+    else {
+        Write-Error -Message ($psadtSettings + ' and ' + $psadtScript + ' file is missing. Cannot continue.')
+        Exit -1   
+    }
 }
 
 $psadtPath = ($installPath + '\AppDeployToolkit')
