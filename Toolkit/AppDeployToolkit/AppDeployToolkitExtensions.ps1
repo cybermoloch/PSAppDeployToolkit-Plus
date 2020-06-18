@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
 	This script is a template that allows you to extend the toolkit with your own custom functions.
     # LICENSE #
@@ -28,7 +28,7 @@ Param (
 [string]$appDeployToolkitExtName = 'PSAppDeployToolkitExt'
 [string]$appDeployExtScriptFriendlyName = 'App Deploy Toolkit Extensions'
 [version]$appDeployExtScriptVersion = [version]'3.8.2'
-[string]$appDeployExtScriptDate = '2020-05-06'
+[string]$appDeployExtScriptDate = '16/06/2020'
 [hashtable]$appDeployExtScriptParameters = $PSBoundParameters
 
 ##*===============================================

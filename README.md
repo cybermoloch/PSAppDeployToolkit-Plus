@@ -35,7 +35,20 @@ The simplified version of deployment tasks:
 4. If there are additional supporting files attach them in a zip file named SupportFiles.zip.
 5. Run the task.
 
-## License
+### System Requirements
+
+* Powershell 2.0+
+* .NET Framework 3.5+
+
+### Links
+
+**-> [Homepage](https://psappdeploytoolkit.com)<br>
+-> [Community Forums](https://discourse.psappdeploytoolkit.com/)<br>
+-> [Releases](https://github.com/PSAppDeployToolkit/PSAppDeployToolkit/releases)<br>
+-> [Screenshots](https://psappdeploytoolkit.com/screenshots/)<br>
+-> [About Us](https://psappdeploytoolkit.com/about/)**<br>
+
+### License
 
 PSADT+ follows the same license as the original PowerShell App Deployment Toolkit: GPLv3. Both PowerShell modules are under the MIT license as per their original authors.
 

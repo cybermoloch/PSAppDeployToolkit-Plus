@@ -1,4 +1,4 @@
-﻿	<#
+﻿<#
 .SYNOPSIS
 	This script performs the installation or uninstallation of an application(s).
 	# LICENSE #
@@ -65,15 +65,17 @@ Try {
 	$deploySettings = Get-Content -Path ($PSScriptRoot + '\Deploy-Application.json')  | ConvertFrom-Json
 
 	## Variables: Application
+
 	[string]$appVendor = $deploySettings.psadtVariables.appVendor
 	[string]$appName = $deploySettings.psadtVariables.appName
 	[string]$appVersion = $deploySettings.psadtVariables.appVersion
 	[string]$appArch = $deploySettings.psadtVariables.appArch
 	[string]$appLang = $deploySettings.psadtVariables.appLang
 	[string]$appRevision = $deploySettings.psadtVariables.appRevision
-	[string]$appScriptVersion = '2.0.1.0'
+	[string]$appScriptVersion = '3.0.0.1'
 	[string]$appScriptDate = $deploySettings.psadtVariables.appScriptDate
 	[string]$appScriptAuthor = $deploySettings.psadtVariables.appScriptAuthor
+
 	##*===============================================
 	## Variables: Install Titles (Only set here to override defaults set by the toolkit)
 	[string]$installName = $deploySettings.psadtVariables.installName
@@ -88,7 +90,7 @@ Try {
 	## Variables: Script
 	[string]$deployAppScriptFriendlyName = 'Deploy Application'
 	[version]$deployAppScriptVersion = [version]'3.8.2'
-	[string]$deployAppScriptDate = '13/04/2020'
+	[string]$deployAppScriptDate = '08/05/2020'
 	[hashtable]$deployAppScriptParameters = $psBoundParameters
 
 	## Variables: Environment

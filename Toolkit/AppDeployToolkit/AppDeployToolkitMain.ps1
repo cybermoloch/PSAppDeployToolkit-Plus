@@ -72,7 +72,7 @@ Param (
 ## Variables: Script Info
 [version]$appDeployMainScriptVersion = [version]'3.8.2'
 [version]$appDeployMainScriptMinimumConfigVersion = [version]'3.8.2'
-[string]$appDeployMainScriptDate = '13/04/2020'
+[string]$appDeployMainScriptDate = '08/05/2020'
 [hashtable]$appDeployMainScriptParameters = $PSBoundParameters
 
 ## Variables: Datetime and Culture
@@ -91,8 +91,6 @@ Param (
 [string]$envAllUsersProfile = $env:ALLUSERSPROFILE
 [string]$envAppData = [Environment]::GetFolderPath('ApplicationData')
 [string]$envArchitecture = $env:PROCESSOR_ARCHITECTURE
-[string]$envCommonProgramFiles = [Environment]::GetFolderPath('CommonProgramFiles')
-[string]$envCommonProgramFilesX86 = ${env:CommonProgramFiles(x86)}
 [string]$envCommonDesktop   = $envShellFolders | Select-Object -ExpandProperty 'Common Desktop' -ErrorAction 'SilentlyContinue'
 [string]$envCommonDocuments = $envShellFolders | Select-Object -ExpandProperty 'Common Documents' -ErrorAction 'SilentlyContinue'
 [string]$envCommonStartMenuPrograms  = $envShellFolders | Select-Object -ExpandProperty 'Common Programs' -ErrorAction 'SilentlyContinue'
@@ -106,8 +104,6 @@ Param (
 [string]$envHomeShare = $env:HOMESHARE
 [string]$envLocalAppData = [Environment]::GetFolderPath('LocalApplicationData')
 [string[]]$envLogicalDrives = [Environment]::GetLogicalDrives()
-[string]$envProgramFiles = [Environment]::GetFolderPath('ProgramFiles')
-[string]$envProgramFilesX86 = ${env:ProgramFiles(x86)}
 [string]$envProgramData = [Environment]::GetFolderPath('CommonApplicationData')
 [string]$envPublic = $env:PUBLIC
 [string]$envSystemDrive = $env:SYSTEMDRIVE
@@ -129,9 +125,6 @@ Param (
 [string]$envUserTemplates = [Environment]::GetFolderPath('Templates')
 [string]$envSystem32Directory = [Environment]::SystemDirectory
 [string]$envWinDir = $env:WINDIR
-#  Handle X86 environment variables so they are never empty
-If (-not $envCommonProgramFilesX86) { [string]$envCommonProgramFilesX86 = $envCommonProgramFiles }
-If (-not $envProgramFilesX86) { [string]$envProgramFilesX86 = $envProgramFiles }
 
 ## Variables: Domain Membership
 [boolean]$IsMachinePartOfDomain = (Get-WmiObject -Class 'Win32_ComputerSystem' -ErrorAction 'SilentlyContinue').PartOfDomain
@@ -167,8 +160,12 @@ Catch { }
 [string]$envOSVersionMajor = $envOSVersion.Major
 [string]$envOSVersionMinor = $envOSVersion.Minor
 [string]$envOSVersionBuild = $envOSVersion.Build
-If ($envOSVersionMajor -eq 10) {$envOSVersionRevision = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'UBR' -ErrorAction SilentlyContinue).UBR}
-Else { [string]$envOSVersionRevision = ,((Get-ItemProperty -Path 'HKLM:SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'BuildLabEx' -ErrorAction 'SilentlyContinue').BuildLabEx -split '\.') | ForEach-Object { $_[1] } }
+If ((Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction 'SilentlyContinue').PSObject.Properties.Name -contains 'UBR') {
+	[string]$envOSVersionRevision = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'UBR' -ErrorAction 'SilentlyContinue').UBR
+}
+ElseIf ((Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction 'SilentlyContinue').PSObject.Properties.Name -contains 'BuildLabEx') {
+	[string]$envOSVersionRevision = ,((Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'BuildLabEx' -ErrorAction 'SilentlyContinue').BuildLabEx -split '\.') | ForEach-Object { $_[1] }
+}
 If ($envOSVersionRevision -notmatch '^[\d\.]+$') { $envOSVersionRevision = '' }
 If ($envOSVersionRevision) { [string]$envOSVersion = "$($envOSVersion.ToString()).$envOSVersionRevision" } Else { "$($envOSVersion.ToString())" }
 #  Get the operating system type
@@ -189,6 +186,31 @@ If ($Is64Bit) { [string]$envOSArchitecture = '64-bit' } Else { [string]$envOSArc
 ## Variables: Current Process Architecture
 [boolean]$Is64BitProcess = [boolean]([IntPtr]::Size -eq 8)
 If ($Is64BitProcess) { [string]$psArchitecture = 'x64' } Else { [string]$psArchitecture = 'x86' }
+
+## Variables: Get Normalized ProgramFiles and CommonProgramFiles Paths
+[string]$envProgramFiles = ''
+[string]$envProgramFilesX86 = ''
+[string]$envCommonProgramFiles = ''
+[string]$envCommonProgramFilesX86 = ''
+If ($Is64Bit) {
+	If ($Is64BitProcess) {
+		[string]$envProgramFiles = [Environment]::GetFolderPath('ProgramFiles')
+		[string]$envCommonProgramFiles = [Environment]::GetFolderPath('CommonProgramFiles')
+	}
+	Else {
+		[string]$envProgramFiles = [Environment]::GetEnvironmentVariable('ProgramW6432')
+		[string]$envCommonProgramFiles = [Environment]::GetEnvironmentVariable('CommonProgramW6432')
+	}
+	
+	[string]$envProgramFilesX86 = [Environment]::GetFolderPath('ProgramFilesX86')
+	[string]$envCommonProgramFilesX86 = [Environment]::GetFolderPath('CommonProgramFilesX86')
+}
+Else {
+	[string]$envProgramFiles = [Environment]::GetFolderPath('ProgramFiles')
+	[string]$envProgramFilesX86 = $envProgramFiles
+	[string]$envCommonProgramFiles = [Environment]::GetFolderPath('CommonProgramFiles')
+	[string]$envCommonProgramFilesX86 = $envCommonProgramFiles
+}
 
 ## Variables: Hardware
 [int32]$envSystemRAM = Get-WMIObject -Class Win32_PhysicalMemory -ComputerName $env:COMPUTERNAME -ErrorAction 'SilentlyContinue' | Measure-Object -Property Capacity -Sum -ErrorAction SilentlyContinue | ForEach-Object {[Math]::Round(($_.sum / 1GB),2)}
@@ -251,7 +273,7 @@ If (-not (Test-Path -LiteralPath $appDeployCustomTypesSourceCode -PathType 'Leaf
 [string]$appDeployToolkitDotSourceExtensions = 'AppDeployToolkitExtensions.ps1'
 
 ## Import variables from XML configuration file
-[Xml.XmlDocument]$xmlConfigFile = Get-Content -LiteralPath $AppDeployConfigFile
+[Xml.XmlDocument]$xmlConfigFile = Get-Content -LiteralPath $AppDeployConfigFile -Encoding UTF8
 [Xml.XmlElement]$xmlConfig = $xmlConfigFile.AppDeployToolkit_Config
 #  Get Config File Details
 [Xml.XmlElement]$configConfigDetails = $xmlConfig.Config_File
@@ -299,6 +321,21 @@ if ($appDeployLogoBannerHeight -gt $appDeployLogoBannerMaxHeight) {
 [string]$configMSIUninstallParams = $ExecutionContext.InvokeCommand.ExpandString($xmlConfigMSIOptions.MSI_UninstallParams)
 [string]$configMSILogDir = $ExecutionContext.InvokeCommand.ExpandString($xmlConfigMSIOptions.MSI_LogPath)
 [int32]$configMSIMutexWaitTime = $xmlConfigMSIOptions.MSI_MutexWaitTime
+#  Change paths to user accessible ones if RequireAdmin is false
+If ($configToolkitRequireAdmin -eq $false){
+	If ($xmlToolkitOptions.Toolkit_TempPathNoAdminRights) {
+		[string]$configToolkitTempPath = $ExecutionContext.InvokeCommand.ExpandString($xmlToolkitOptions.Toolkit_TempPathNoAdminRights)
+	}
+	If ($xmlToolkitOptions.Toolkit_RegPathNoAdminRights) {
+		[string]$configToolkitRegPath = $xmlToolkitOptions.Toolkit_RegPathNoAdminRights
+	}
+	If ($xmlToolkitOptions.Toolkit_LogPathNoAdminRights) {
+		[string]$configToolkitLogDir = $ExecutionContext.InvokeCommand.ExpandString($xmlToolkitOptions.Toolkit_LogPathNoAdminRights)
+	}
+	If ($xmlConfigMSIOptions.MSI_LogPathNoAdminRights) {
+		[string]$configMSILogDir = $ExecutionContext.InvokeCommand.ExpandString($xmlConfigMSIOptions.MSI_LogPathNoAdminRights)
+	}
+}
 #  Get UI Options
 [Xml.XmlElement]$xmlConfigUIOptions = $xmlConfig.UI_Options
 [string]$configInstallationUILanguageOverride = $xmlConfigUIOptions.InstallationUI_LanguageOverride
@@ -427,6 +464,9 @@ If (-not $deploymentType) { [string]$deploymentType = 'Install' }
 
 ## Variables: RegEx Patterns
 [string]$MSIProductCodeRegExPattern = '^(\{{0,1}([0-9a-fA-F]){8}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){12}\}{0,1})$'
+
+## Variables: Invalid FileName Characters
+[char[]]$invalidFileNameChars = [IO.Path]::GetinvalidFileNameChars()
 
 ## Variables: Registry Keys
 #  Registry keys for native and WOW64 applications
@@ -659,7 +699,7 @@ Function Write-Log {
 		[int16]$Severity = 1,
 		[Parameter(Mandatory=$false,Position=2)]
 		[ValidateNotNull()]
-		[string]$Source = 'Unknown',
+		[string]$Source = $([string]$parentFunctionName = [IO.Path]::GetFileNameWithoutExtension((Get-Variable -Name MyInvocation -Scope 1 -ErrorAction SilentlyContinue).Value.MyCommand.Name); If($parentFunctionName) {$parentFunctionName} Else {'Unknown'}),
 		[Parameter(Mandatory=$false,Position=3)]
 		[ValidateNotNullorEmpty()]
 		[string]$ScriptSection = $script:installPhase,
@@ -900,7 +940,7 @@ Function Remove-InvalidFileNameChars {
 	}
 	Process {
 		Try {
-			Write-Output -InputObject (([char[]]$Name | Where-Object { [IO.Path]::GetinvalidFileNameChars() -notcontains $_ }) -join '')
+			Write-Output -InputObject (([char[]]$Name | Where-Object { $invalidFileNameChars -notcontains $_ }) -join '')
 		}
 		Catch {
 			Write-Log -Message "Failed to remove invalid characters from the supplied filename. `n$(Resolve-Error)" -Severity 3 -Source ${CmdletName}
@@ -1189,10 +1229,13 @@ Function Exit-Script {
 	}
 
 	If ($script:notifyIcon) { Try { $script:notifyIcon.Dispose() } Catch {} }
-	
+
 	## Dump the exit code to JSON file in case launched through separate process
 	## This allows the bootstrap script to provide the same exitcode to the RMM task
 	$exitCode | ConvertTo-Json | Out-File -FilePath ($dirSupportFiles + '\exitCode.json') -Force
+
+	## Reset powershell window title to its previous title
+	$Host.UI.RawUI.WindowTitle = $oldPSWindowTitle
 
 	## Exit the script, returning the exit code to SCCM
 	If (Test-Path -LiteralPath 'variable:HostInvocation') { $script:ExitCode = $exitCode; Exit } Else { Exit $exitCode }
@@ -1480,12 +1523,16 @@ Function Show-InstallationPrompt {
 		[Windows.Forms.Application]::EnableVisualStyles()
 		$formInstallationPrompt = New-Object -TypeName 'System.Windows.Forms.Form'
 		$pictureBanner = New-Object -TypeName 'System.Windows.Forms.PictureBox'
-		$pictureIcon = New-Object -TypeName 'System.Windows.Forms.PictureBox'
+		If ($Icon -ne 'None') {
+			$pictureIcon = New-Object -TypeName 'System.Windows.Forms.PictureBox'
+		}
 		$labelText = New-Object -TypeName 'System.Windows.Forms.Label'
 		$buttonRight = New-Object -TypeName 'System.Windows.Forms.Button'
 		$buttonMiddle = New-Object -TypeName 'System.Windows.Forms.Button'
 		$buttonLeft = New-Object -TypeName 'System.Windows.Forms.Button'
 		$buttonAbort = New-Object -TypeName 'System.Windows.Forms.Button'
+		$flowLayoutPanel = New-Object -TypeName 'System.Windows.Forms.FlowLayoutPanel'
+		$panelButtons = New-Object -TypeName 'System.Windows.Forms.Panel'
 		$InitialFormInstallationPromptWindowState = New-Object -TypeName 'System.Windows.Forms.FormWindowState'
 
 		[scriptblock]$Form_Cleanup_FormClosed = {
@@ -1523,84 +1570,61 @@ Function Show-InstallationPrompt {
 
 		##----------------------------------------------
 		## Create padding object
-		$paddingNone = New-Object -TypeName 'System.Windows.Forms.Padding'
-		$paddingNone.Top = 0
-		$paddingNone.Bottom = 0
-		$paddingNone.Left = 0
-		$paddingNone.Right = 0
+		$paddingNone = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 0,0,0,0
+
+		## Default control size
+		$DefaultControlSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 450,0
 
 		## Generic Button properties
-		$buttonWidth = 110
-		$buttonHeight = 23
-		$buttonPadding = 50
-		$buttonSize = New-Object -TypeName 'System.Drawing.Size'
-		$buttonSize.Width = $buttonWidth
-		$buttonSize.Height = $buttonHeight
-		$buttonPadding = New-Object -TypeName 'System.Windows.Forms.Padding'
-		$buttonPadding.Top = 0
-		$buttonPadding.Bottom = 5
-		$buttonPadding.Left = 50
-		$buttonPadding.Right = 0
+		$buttonSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 110,24
 
 		## Picture Banner
 		$pictureBanner.DataBindings.DefaultDataSourceUpdateMode = 0
 		$pictureBanner.ImageLocation = $appDeployLogoBanner
-		$System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point'
-		$System_Drawing_Point.X = 0
-		$System_Drawing_Point.Y = 0
-		$pictureBanner.Location = $System_Drawing_Point
-		$pictureBanner.Name = 'pictureBanner'
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		$System_Drawing_Size.Height = $appDeployLogoBannerHeight
-		$System_Drawing_Size.Width = 450
-		$pictureBanner.Size = $System_Drawing_Size
+		$pictureBanner.Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 450,$appDeployLogoBannerHeight
+        $pictureBanner.MinimumSize = $DefaultControlSize
 		$pictureBanner.SizeMode = 'CenterImage'
 		$pictureBanner.Margin = $paddingNone
 		$pictureBanner.TabIndex = 0
 		$pictureBanner.TabStop = $false
+		$pictureBanner.Location = New-Object -TypeName 'System.Drawing.Point' -ArgumentList 0,0
 
 		## Picture Icon
-		$pictureIcon.DataBindings.DefaultDataSourceUpdateMode = 0
-		If ($icon -ne 'None') { $pictureIcon.Image = ([Drawing.SystemIcons]::$Icon).ToBitmap() }
-		$System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point'
-		$System_Drawing_Point.X = 15
-		$System_Drawing_Point.Y = 105 + $appDeployLogoBannerHeightDifference
-		$pictureIcon.Location = $System_Drawing_Point
-		$pictureIcon.Name = 'pictureIcon'
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		$System_Drawing_Size.Height = 32
-		$System_Drawing_Size.Width = 32
-		$pictureIcon.Size = $System_Drawing_Size
-		$pictureIcon.AutoSize = $true
-		$pictureIcon.Margin = $paddingNone
-		$pictureIcon.TabIndex = 0
-		$pictureIcon.TabStop = $false
+		If ($Icon -ne 'None') {
+			$pictureIcon.DataBindings.DefaultDataSourceUpdateMode = 0
+			$pictureIcon.Image = ([Drawing.SystemIcons]::$Icon).ToBitmap()
+			$pictureIcon.Name = 'pictureIcon'
+			$pictureIcon.MinimumSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 64,32
+			$pictureIcon.Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 64,32
+			$pictureIcon.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 24,0,8,0
+			$pictureIcon.SizeMode = "CenterImage"
+			$pictureIcon.TabIndex = 0
+			$pictureIcon.TabStop = $false
+			$pictureIcon.Anchor = 'None'
+            $pictureIcon.Margin = $paddingNone
+		}
 
 		## Label Text
 		$labelText.DataBindings.DefaultDataSourceUpdateMode = 0
 		$labelText.Name = 'labelText'
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		$System_Drawing_Size.Height = 148
-		$System_Drawing_Size.Width = 385
+		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size' 386,0
 		$labelText.Size = $System_Drawing_Size
-		$System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point'
-		$System_Drawing_Point.X = 25
-		$System_Drawing_Point.Y = $appDeployLogoBannerHeight
-		$labelText.Location = $System_Drawing_Point
-		$labelText.Margin = '0,0,0,0'
-		$labelText.Padding = '40,0,20,0'
+		$labelText.MinimumSize = $System_Drawing_Size
+		$labelText.MaximumSize = $System_Drawing_Size
+		$labelText.AutoSize = $true
+		$labelText.Margin = $paddingNone
 		$labelText.TabIndex = 1
 		$labelText.Text = $message
 		$labelText.TextAlign = "Middle$($MessageAlignment)"
-		$labelText.Anchor = 'Top'
+		$labelText.Anchor = 'None'
 		$labelText.add_Click($handler_labelText_Click)
 
-		# Generic Y location for buttons
-		$buttonLocationY = 200 + $appDeployLogoBannerHeightDifference
-
+		If ($Icon -ne 'None') {
+			# Add margin for the icon based on labelText Height so its centered
+			$pictureIcon.Height = $labelText.Height
+		}
 		## Button Left
 		$buttonLeft.DataBindings.DefaultDataSourceUpdateMode = 0
-		$buttonLeft.Location = "15,$buttonLocationY"
 		$buttonLeft.Name = 'buttonLeft'
 		$buttonLeft.Size = $buttonSize
 		$buttonLeft.TabIndex = 5
@@ -1608,11 +1632,11 @@ Function Show-InstallationPrompt {
 		$buttonLeft.DialogResult = 'No'
 		$buttonLeft.AutoSize = $false
 		$buttonLeft.UseVisualStyleBackColor = $true
+		$buttonLeft.Location = "15,5"
 		$buttonLeft.add_Click($buttonLeft_OnClick)
 
 		## Button Middle
 		$buttonMiddle.DataBindings.DefaultDataSourceUpdateMode = 0
-		$buttonMiddle.Location = "170,$buttonLocationY"
 		$buttonMiddle.Name = 'buttonMiddle'
 		$buttonMiddle.Size = $buttonSize
 		$buttonMiddle.TabIndex = 6
@@ -1620,11 +1644,11 @@ Function Show-InstallationPrompt {
 		$buttonMiddle.DialogResult = 'Ignore'
 		$buttonMiddle.AutoSize = $true
 		$buttonMiddle.UseVisualStyleBackColor = $true
+        $buttonMiddle.Location = "170,5"
 		$buttonMiddle.add_Click($buttonMiddle_OnClick)
 
 		## Button Right
 		$buttonRight.DataBindings.DefaultDataSourceUpdateMode = 0
-		$buttonRight.Location = "325,$buttonLocationY"
 		$buttonRight.Name = 'buttonRight'
 		$buttonRight.Size = $buttonSize
 		$buttonRight.TabIndex = 7
@@ -1632,6 +1656,7 @@ Function Show-InstallationPrompt {
 		$buttonRight.DialogResult = 'Yes'
 		$buttonRight.AutoSize = $true
 		$buttonRight.UseVisualStyleBackColor = $true
+		$buttonRight.Location = "325,5"
 		$buttonRight.add_Click($buttonRight_OnClick)
 
 		## Button Abort (Hidden)
@@ -1640,18 +1665,61 @@ Function Show-InstallationPrompt {
 		$buttonAbort.Size = '1,1'
 		$buttonAbort.DialogResult = 'Abort'
 		$buttonAbort.TabStop = $false
+		$buttonAbort.Visible = $false
 		$buttonAbort.UseVisualStyleBackColor = $true
+        $buttonAbort.Location = "0,0"
 		$buttonAbort.add_Click($buttonAbort_OnClick)
 
+		## FlowLayoutPanel
+		$flowLayoutPanel.MinimumSize = $DefaultControlSize
+		$flowLayoutPanel.MaximumSize = $DefaultControlSize
+		$flowLayoutPanel.Size = $DefaultControlSize
+		$flowLayoutPanel.AutoSize = $true
+		$flowLayoutPanel.Anchor = 'Top,Left'
+		$flowLayoutPanel.FlowDirection = 'LeftToRight'
+		$flowLayoutPanel.WrapContents = $true
+        $flowLayoutPanel.Margin = $paddingNone
+		If ($Icon -ne 'None') {
+			$flowLayoutPanel.Controls.Add($pictureIcon)
+		}
+		$flowLayoutPanel.Controls.Add($labelText)
+		## Make sure label text is positioned correctly
+		If ($Icon -ne 'None') {
+			$labelText.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 0,5,10,5
+            $pictureIcon.Location = New-Object -TypeName 'System.Drawing.Point' -ArgumentList 0,0
+			$labelText.Location =  New-Object -TypeName 'System.Drawing.Point' -ArgumentList 64,0
+		} else {
+			$labelText.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 10,5,10,5
+			$labelText.MinimumSize = $DefaultControlSize
+			$labelText.MaximumSize = $DefaultControlSize
+			$labelText.Size = $DefaultControlSize
+			$labelText.Location =  New-Object -TypeName 'System.Drawing.Point' -ArgumentList 0,0
+		}
+		$flowLayoutPanel.Controls.Add($buttonAbort)
+		$flowLayoutPanel.Location = New-Object -TypeName 'System.Drawing.Point' -ArgumentList 0,$appDeployLogoBannerHeight
+
+		## ButtonsPanel
+		$panelButtons.MinimumSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 450,34
+		$panelButtons.Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 450,34
+		$panelButtons.Padding = $paddingNone
+		$panelButtons.Margin = $paddingNone
+		$panelButtons.MaximumSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 450,34
+		$panelButtons.AutoSize = $true
+		If ($buttonLeftText) { $panelButtons.Controls.Add($buttonLeft) }
+		If ($buttonMiddleText) { $panelButtons.Controls.Add($buttonMiddle) }
+		If ($buttonRightText) { $panelButtons.Controls.Add($buttonRight) }
+		## Add the ButtonsPanel to the flowLayoutPanel if any buttons are present
+		If ($buttonLeftText -or $buttonMiddleText -or $buttonRightText) {
+			$flowLayoutPanel.Controls.Add($panelButtons)
+		}
+
 		## Form Installation Prompt
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		$System_Drawing_Size.Height = 270 + $appDeployLogoBannerHeightDifference
-		$System_Drawing_Size.Width = 450
-		$formInstallationPrompt.Size = $System_Drawing_Size
-		$formInstallationPrompt.Padding = '0,0,0,10'
+		$formInstallationPrompt.MinimumSize = $DefaultControlSize
+        $formInstallationPrompt.Size = $DefaultControlSize
+		$formInstallationPrompt.Padding = $paddingNone
 		$formInstallationPrompt.Margin = $paddingNone
 		$formInstallationPrompt.DataBindings.DefaultDataSourceUpdateMode = 0
-		$formInstallationPrompt.Name = 'WelcomeForm'
+		$formInstallationPrompt.Name = 'InstallPromptForm'
 		$formInstallationPrompt.Text = $title
 		$formInstallationPrompt.StartPosition = 'CenterScreen'
 		$formInstallationPrompt.FormBorderStyle = 'FixedDialog'
@@ -1659,15 +1727,10 @@ Function Show-InstallationPrompt {
 		$formInstallationPrompt.MinimizeBox = $false
 		$formInstallationPrompt.TopMost = $true
 		$formInstallationPrompt.TopLevel = $true
+		$formInstallationPrompt.AutoSize = $true
 		$formInstallationPrompt.Icon = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList $AppDeployLogoIcon
 		$formInstallationPrompt.Controls.Add($pictureBanner)
-		$formInstallationPrompt.Controls.Add($pictureIcon)
-		$formInstallationPrompt.Controls.Add($labelText)
-		$formInstallationPrompt.Controls.Add($buttonAbort)
-		If ($buttonLeftText) { $formInstallationPrompt.Controls.Add($buttonLeft) }
-		If ($buttonMiddleText) { $formInstallationPrompt.Controls.Add($buttonMiddle) }
-		If ($buttonRightText) { $formInstallationPrompt.Controls.Add($buttonRight) }
-
+		$formInstallationPrompt.Controls.Add($flowLayoutPanel)
 		## Timer
 		$timer = New-Object -TypeName 'System.Windows.Forms.Timer'
 		$timer.Interval = ($timeout * 1000)
@@ -2109,10 +2172,10 @@ Function Get-InstalledApplication {
 					Continue
 				}
 
-				## Remove any invalid filename characters which may interfere with logging and creating file path names from these variables
-				$appDisplayName = Remove-InvalidFileNameChars -Name $regKeyApp.DisplayName
-				$appDisplayVersion = Remove-InvalidFileNameChars -Name $regKeyApp.DisplayVersion
-				$appPublisher = Remove-InvalidFileNameChars -Name $regKeyApp.Publisher
+				## Remove any control characters which may interfere with logging and creating file path names from these variables
+				$appDisplayName = $regKeyApp.DisplayName -replace '[^\u001F-\u007F]',''
+				$appDisplayVersion = $regKeyApp.DisplayVersion -replace '[^\u001F-\u007F]',''
+				$appPublisher = $regKeyApp.Publisher -replace '[^\u001F-\u007F]',''
 
 
 				## Determine if application is a 64-bit application
@@ -2815,15 +2878,18 @@ Function Execute-Process {
 	Hides all parameters passed to the executable from the Toolkit log file
 .PARAMETER WindowStyle
 	Style of the window of the process executed. Options: Normal, Hidden, Maximized, Minimized. Default: Normal.
-	Note: Not all processes honor the "Hidden" flag. If it it not working, then check the command line options for the process being executed to see it has a silent option.
+	Note: Not all processes honor WindowStyle. WindowStyle is a recommendation passed to the process. They can choose to ignore it.
+	Only works for native Windows GUI applications. If the WindowStyle is set to Hidden, UseShellExecute should be set to $true.
 .PARAMETER CreateNoWindow
-	Specifies whether the process should be started with a new window to contain it. Default is false.
+	Specifies whether the process should be started with a new window to contain it. Only works for Console mode applications. UseShellExecute should be set to $false. 
+	Default is false.
 .PARAMETER WorkingDirectory
 	The working directory used for executing the process. Defaults to the directory of the file being executed.
+	Parameter UseShellExecute affects this parameter.
 .PARAMETER NoWait
 	Immediately continue after executing the process.
 .PARAMETER PassThru
-	Returns ExitCode, STDOut, and STDErr output from the process.
+	If NoWait is not specified, returns an object with ExitCode, STDOut and STDErr output from the process. If NoWait is specified, returns an object with Id, Handle and ProcessName.
 .PARAMETER WaitForMsiExec
 	Sometimes an EXE bootstrapper will launch an MSI install. In such cases, this variable will ensure that
 	this function waits for the msiexec engine to become available before starting the install.
@@ -2835,6 +2901,14 @@ Function Execute-Process {
 	Specifies priority class for the process. Options: Idle, Normal, High, AboveNormal, BelowNormal, RealTime. Default: Normal
 .PARAMETER ExitOnProcessFailure
 	Specifies whether the function should call Exit-Script when the process returns an exit code that is considered an error/failure. Default: $true
+.PARAMETER UseShellExecute
+	Specifies whether to use the operating system shell to start the process. $true if the shell should be used when starting the process; $false if the process should be created directly from the executable file.
+	The word "Shell" in this context refers to a graphical shell (similar to the Windows shell) rather than command shells (for example, bash or sh) and lets users launch graphical applications or open documents.
+	It lets you open a file or a url and the Shell will figure out the program to open it with.
+	The WorkingDirectory property behaves differently depending on the value of the UseShellExecute property. When UseShellExecute is true, the WorkingDirectory property specifies the location of the executable.
+	When UseShellExecute is false, the WorkingDirectory property is not used to find the executable. Instead, it is used only by the process that is started and has meaning only within the context of the new process.
+	If you set UseShellExecute to $true, there will be no available output from the process.
+	Default: $false
 .PARAMETER ContinueOnError
 	Continue if an error occured while trying to start the process. Default: $false.
 .EXAMPLE
@@ -2892,7 +2966,10 @@ Function Execute-Process {
 		[Diagnostics.ProcessPriorityClass]$PriorityClass = 'Normal',
 		[Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
-		[boolean]$ExitOnProcessFailure = $true,
+		[boolean]$ExitOnProcessFailure = $true,		
+		[Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[boolean]$UseShellExecute = $false,
 		[Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
 		[boolean]$ContinueOnError = $false
@@ -2978,22 +3055,29 @@ Function Execute-Process {
 				$processStartInfo = New-Object -TypeName 'System.Diagnostics.ProcessStartInfo' -ErrorAction 'Stop'
 				$processStartInfo.FileName = $Path
 				$processStartInfo.WorkingDirectory = $WorkingDirectory
-				$processStartInfo.UseShellExecute = $false
+				$processStartInfo.UseShellExecute = $UseShellExecute
 				$processStartInfo.ErrorDialog = $false
 				$processStartInfo.RedirectStandardOutput = $true
 				$processStartInfo.RedirectStandardError = $true
 				$processStartInfo.CreateNoWindow = $CreateNoWindow
 				If ($Parameters) { $processStartInfo.Arguments = $Parameters }
-				If ($windowStyle) { $processStartInfo.WindowStyle = $WindowStyle }
+				$processStartInfo.WindowStyle = $WindowStyle
+				If ($processStartInfo.UseShellExecute -eq $true) {
+					Write-Log -Message "UseShellExecute is set to true, standard output and error will not be available." -Source ${CmdletName}
+					$processStartInfo.RedirectStandardOutput = $false
+					$processStartInfo.RedirectStandardError = $false
+				}
 				$process = New-Object -TypeName 'System.Diagnostics.Process' -ErrorAction 'Stop'
 				$process.StartInfo = $processStartInfo
 
-				## Add event handler to capture process's standard output redirection
-				[scriptblock]$processEventHandler = { If (-not [string]::IsNullOrEmpty($EventArgs.Data)) { $Event.MessageData.AppendLine($EventArgs.Data) } }
-				$stdOutBuilder = New-Object -TypeName 'System.Text.StringBuilder' -ArgumentList ''
-				$stdOutEvent = Register-ObjectEvent -InputObject $process -Action $processEventHandler -EventName 'OutputDataReceived' -MessageData $stdOutBuilder -ErrorAction 'Stop'
-				$stdErrBuilder = New-Object -TypeName 'System.Text.StringBuilder' -ArgumentList ''
-				$stdErrEvent = Register-ObjectEvent -InputObject $process -Action $processEventHandler -EventName 'ErrorDataReceived' -MessageData $stdErrBuilder -ErrorAction 'Stop'
+				If ($processStartInfo.UseShellExecute -eq $false) {
+					## Add event handler to capture process's standard output redirection
+					[scriptblock]$processEventHandler = { If (-not [string]::IsNullOrEmpty($EventArgs.Data)) { $Event.MessageData.AppendLine($EventArgs.Data) } }
+					$stdOutBuilder = New-Object -TypeName 'System.Text.StringBuilder' -ArgumentList ''
+					$stdOutEvent = Register-ObjectEvent -InputObject $process -Action $processEventHandler -EventName 'OutputDataReceived' -MessageData $stdOutBuilder -ErrorAction 'Stop'
+					$stdErrBuilder = New-Object -TypeName 'System.Text.StringBuilder' -ArgumentList ''
+					$stdErrEvent = Register-ObjectEvent -InputObject $process -Action $processEventHandler -EventName 'ErrorDataReceived' -MessageData $stdErrBuilder -ErrorAction 'Stop'
+				}
 
 				## Start Process
 				Write-Log -Message "Working Directory is [$WorkingDirectory]." -Source ${CmdletName}
@@ -3015,7 +3099,7 @@ Function Execute-Process {
 				}
 
 				$null = $process.Start()
-
+				## Set priority
 				If ($PriorityClass -ne "Normal") {
 					try {
 						If ($process.HasExited -eq $False) {
@@ -3031,14 +3115,26 @@ Function Execute-Process {
 						Write-Log -Message "Failed to change the priority class for the process." -Severity 2 -Source ${CmdletName}
 					}
 				}
-
+				## NoWait specified, return process details. If it isnt specified, start reading standard Output and Error streams
 				If ($NoWait) {
 					Write-Log -Message 'NoWait parameter specified. Continuing without waiting for exit code...' -Source ${CmdletName}
+
+					If ($PassThru) {
+						If ($process.HasExited -eq $false) {
+							Write-Log -Message "PassThru parameter specified, returning process details object." -Source ${CmdletName}
+							[psobject]$ProcessDetails = New-Object -TypeName 'PSObject' -Property @{ Id = If ($process.Id) {$process.Id} Else { $null } ; Handle = If ($process.Handle) { $process.Handle } Else { [IntPtr]::Zero }; ProcessName = If ($process.ProcessName) { $process.ProcessName } Else { '' } }
+							Write-Output -InputObject $ProcessDetails
+						}
+						Else {
+							Write-Log -Message "PassThru parameter specified, however the process has already exited." -Source ${CmdletName}
+						}
+					}
 				}
 				Else {
-					$process.BeginOutputReadLine()
-					$process.BeginErrorReadLine()
-					
+					If ($processStartInfo.UseShellExecute -eq $false) {
+						$process.BeginOutputReadLine()
+						$process.BeginErrorReadLine()
+					}
 					## Instructs the Process component to wait indefinitely for the associated process to exit.
 					$process.WaitForExit()
 					
@@ -3054,21 +3150,25 @@ Function Execute-Process {
 						[int32]$returnCode = 60013
 					}
 					
-					## Unregister standard output and error event to retrieve process output
-					If ($stdOutEvent) { Unregister-Event -SourceIdentifier $stdOutEvent.Name -ErrorAction 'Stop'; $stdOutEvent = $null }
-					If ($stdErrEvent) { Unregister-Event -SourceIdentifier $stdErrEvent.Name -ErrorAction 'Stop'; $stdErrEvent = $null }
-					$stdOut = $stdOutBuilder.ToString() -replace $null,''
-					$stdErr = $stdErrBuilder.ToString() -replace $null,''
+					If ($processStartInfo.UseShellExecute -eq $false) {
+						## Unregister standard output and error event to retrieve process output
+						If ($stdOutEvent) { Unregister-Event -SourceIdentifier $stdOutEvent.Name -ErrorAction 'Stop'; $stdOutEvent = $null }
+						If ($stdErrEvent) { Unregister-Event -SourceIdentifier $stdErrEvent.Name -ErrorAction 'Stop'; $stdErrEvent = $null }
+						$stdOut = $stdOutBuilder.ToString() -replace $null,''
+						$stdErr = $stdErrBuilder.ToString() -replace $null,''
 
-					If ($stdErr.Length -gt 0) {
-						Write-Log -Message "Standard error output from the process: $stdErr" -Severity 3 -Source ${CmdletName}
+						If ($stdErr.Length -gt 0) {
+							Write-Log -Message "Standard error output from the process: $stdErr" -Severity 3 -Source ${CmdletName}
+						}
 					}
 				}
 			}
 			Finally {
-				## Make sure the standard output and error event is unregistered
-				If ($stdOutEvent) { Unregister-Event -SourceIdentifier $stdOutEvent.Name -ErrorAction 'Stop'; $stdOutEvent = $null }
-				If ($stdErrEvent) { Unregister-Event -SourceIdentifier $stdErrEvent.Name -ErrorAction 'Stop'; $stdErrEvent = $null }
+				If ($processStartInfo.UseShellExecute -eq $false) {
+					## Make sure the standard output and error event is unregistered
+					If ($stdOutEvent) { Unregister-Event -SourceIdentifier $stdOutEvent.Name -ErrorAction 'Stop'; $stdOutEvent = $null }
+					If ($stdErrEvent) { Unregister-Event -SourceIdentifier $stdErrEvent.Name -ErrorAction 'Stop'; $stdErrEvent = $null }
+				}
 				## Free resources associated with the process, this does not cause process to exit
 				If ($process) { $process.Dispose() }
 
@@ -3097,8 +3197,8 @@ Function Execute-Process {
 
 				## If the passthru switch is specified, return the exit code and any output from process
 				If ($PassThru) {
-					Write-Log -Message "-PassThru parameter specified, returning execution results object." -Source ${CmdletName}
-					[psobject]$ExecutionResults = New-Object -TypeName 'PSObject' -Property @{ ExitCode = $returnCode; StdOut = $stdOut; StdErr = $stdErr }
+					Write-Log -Message "PassThru parameter specified, returning execution results object." -Source ${CmdletName}
+					[psobject]$ExecutionResults = New-Object -TypeName 'PSObject' -Property @{ ExitCode = $returnCode; StdOut = If ($stdOut) { $stdOut } Else { '' }; StdErr = If ($stdErr) { $stdErr } Else { '' } }
 					Write-Output -InputObject $ExecutionResults
 				}
 
@@ -6498,7 +6598,7 @@ Function Show-WelcomePrompt {
 				Set-Variable -Name 'closeAppsCountdownGlobal' -Value $remainingTime.TotalSeconds -Scope 'Script'
 
 				## If the countdown is complete, close the application(s) or continue
-				If ($countdownTime -lt $currentTime) {
+				If ($countdownTime -le $currentTime) {
 					If ($forceCountdown -eq $true) {
 						Write-Log -Message 'Countdown timer has elapsed. Force continue.' -Source ${CmdletName}
 						$buttonContinue.PerformClick()
@@ -6555,37 +6655,21 @@ Function Show-WelcomePrompt {
 		$formWelcome.Controls.Add($buttonAbort)
 
 		##----------------------------------------------
-		## Create padding object
-		$paddingNone = New-Object -TypeName 'System.Windows.Forms.Padding'
-		$paddingNone.Top = 0
-		$paddingNone.Bottom = 0
-		$paddingNone.Left = 0
-		$paddingNone.Right = 0
+		## Create zero px padding object
+		$paddingNone = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 0,0,0,0
+		## Create basic control size
+		$defaultControlSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 450,0
 
 		## Generic Button properties
-		$buttonWidth = 110
-		$buttonHeight = 23
-		$buttonPadding = 50
-		$buttonSize = New-Object -TypeName 'System.Drawing.Size'
-		$buttonSize.Width = $buttonWidth
-		$buttonSize.Height = $buttonHeight
-		$buttonPadding = New-Object -TypeName 'System.Windows.Forms.Padding'
-		$buttonPadding.Top = 0
-		$buttonPadding.Bottom = 5
-		$buttonPadding.Left = 50
-		$buttonPadding.Right = 0
+		$buttonSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 110,24
 
 		## Picture Banner
 		$pictureBanner.DataBindings.DefaultDataSourceUpdateMode = 0
 		$pictureBanner.ImageLocation = $appDeployLogoBanner
-		$System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point'
-		$System_Drawing_Point.X = 0
-		$System_Drawing_Point.Y = 0
+		$System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point' -ArgumentList 0,0
 		$pictureBanner.Location = $System_Drawing_Point
 		$pictureBanner.Name = 'pictureBanner'
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		$System_Drawing_Size.Height = $appDeployLogoBannerHeight
-		$System_Drawing_Size.Width = 450
+		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 450,$appDeployLogoBannerHeight
 		$pictureBanner.Size = $System_Drawing_Size
 		$pictureBanner.SizeMode = 'CenterImage'
 		$pictureBanner.Margin = $paddingNone
@@ -6595,33 +6679,23 @@ Function Show-WelcomePrompt {
 		## Label App Name
 		$labelAppName.DataBindings.DefaultDataSourceUpdateMode = 0
 		$labelAppName.Name = 'labelAppName'
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		If (-not $showCloseApps) {
-			$System_Drawing_Size.Height = 40
-		}
-		Else {
-			$System_Drawing_Size.Height = 65
-		}
-		$System_Drawing_Size.Width = 450
-		$labelAppName.Size = $System_Drawing_Size
-		$System_Drawing_Size.Height = 0
-		$labelAppName.MaximumSize = $System_Drawing_Size
-		$labelAppName.Margin = '0,15,0,15'
-		$labelAppName.Padding = '20,0,20,0'
+		$labelAppName.Size = $defaultControlSize
+		$labelAppName.MinimumSize = $defaultControlSize
+		$labelAppName.MaximumSize = $defaultControlSize
+		$labelAppName.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 0,5,0,5
+		$labelAppName.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 10,0,10,0
 		$labelAppName.TabIndex = 1
 
 		## Initial form layout: Close Applications / Allow Deferral
+		$labelAppNameText = "$configDeferPromptWelcomeMessage`n`n$installTitle"
 		If ($showCloseApps) {
-			$labelAppNameText = $configClosePromptMessage
+			$labelAppNameText = "$labelAppNameText`n`n$configClosePromptMessage"
 		}
-		ElseIf (($showDefer) -or ($forceCountdown)) {
-			$labelAppNameText = "$configDeferPromptWelcomeMessage `n$installTitle"
-		}
-		If ($CustomText) {
-			$labelAppNameText = "$labelAppNameText `n`n$configWelcomePromptCustomMessage"
+		If ($CustomText -and $configWelcomePromptCustomMessage) {
+			$labelAppNameText = "$labelAppNameText`n`n$configWelcomePromptCustomMessage"
 		}
 		$labelAppName.Text = $labelAppNameText
-		$labelAppName.TextAlign = 'TopCenter'
+		$labelAppName.TextAlign = 'MiddleCenter'
 		$labelAppName.Anchor = 'Top'
 		$labelAppName.AutoSize = $true
 		$labelAppName.add_Click($handler_labelAppName_Click)
@@ -6631,25 +6705,20 @@ Function Show-WelcomePrompt {
 		$listBoxCloseApps.FormattingEnabled = $true
 		$listBoxCloseApps.HorizontalScrollbar = $true
 		$listBoxCloseApps.Name = 'listBoxCloseApps'
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		$System_Drawing_Size.Height = 100
-		$System_Drawing_Size.Width = 300
+		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 400,100
 		$listBoxCloseApps.Size = $System_Drawing_Size
-		$listBoxCloseApps.Margin = '75,0,0,0'
+		$listBoxCloseApps.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 25,0,0,0
 		$listBoxCloseApps.TabIndex = 3
 		$ProcessDescriptions | ForEach-Object { $null = $listboxCloseApps.Items.Add($_) }
 
 		## Label Defer
 		$labelDefer.DataBindings.DefaultDataSourceUpdateMode = 0
 		$labelDefer.Name = 'labelDefer'
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		$System_Drawing_Size.Height = 90
-		$System_Drawing_Size.Width = 450
-		$labelDefer.Size = $System_Drawing_Size
-		$System_Drawing_Size.Height = 0
-		$labelDefer.MaximumSize = $System_Drawing_Size
-		$labelDefer.Margin = $paddingNone
-		$labelDefer.Padding = '40,0,20,0'
+		$labelDefer.Size = $defaultControlSize
+		$labelDefer.MinimumSize = $defaultControlSize
+		$labelDefer.MaximumSize = $defaultControlSize
+		$labelDefer.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 0,0,0,5
+		$labelDefer.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 10,0,10,0
 		$labelDefer.TabIndex = 4
 		$deferralText = "$configDeferPromptExpiryMessage`n"
 
@@ -6671,42 +6740,34 @@ Function Show-WelcomePrompt {
 		## Label Countdown
 		$labelCountdown.DataBindings.DefaultDataSourceUpdateMode = 0
 		$labelCountdown.Name = 'labelCountdown'
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		$System_Drawing_Size.Height = 40
-		$System_Drawing_Size.Width = 450
-		$labelCountdown.Size = $System_Drawing_Size
-		$System_Drawing_Size.Height = 0
-		$labelCountdown.MaximumSize = $System_Drawing_Size
-		$labelCountdown.Margin = $paddingNone
-		$labelCountdown.Padding = '40,0,20,0'
+		$labelCountdown.Size = $defaultControlSize
+		$labelCountdown.MinimumSize = $defaultControlSize
+		$labelCountdown.MaximumSize = $defaultControlSize
+		$labelCountdown.Margin = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 0,0,0,5
+		$labelCountdown.Padding = New-Object -TypeName 'System.Windows.Forms.Padding' -ArgumentList 10,0,10,0
 		$labelCountdown.TabIndex = 4
-		$labelCountdown.Font = 'Microsoft Sans Serif, 9pt, style=Bold'
+		$labelCountdown.Font = New-Object -TypeName "System.Drawing.Font" -ArgumentList $labelCountdown.Font,1
 		$labelCountdown.Text = '00:00:00'
 		$labelCountdown.TextAlign = 'MiddleCenter'
 		$labelCountdown.AutoSize = $true
 		$labelCountdown.add_Click($handler_labelDefer_Click)
 
 		## Panel Flow Layout
-		$System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point'
-		$System_Drawing_Point.X = 0
-		$System_Drawing_Point.Y = $appDeployLogoBannerHeight
+		$System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point' -ArgumentList 0,$appDeployLogoBannerHeight
 		$flowLayoutPanel.Location = $System_Drawing_Point
+		$flowLayoutPanel.Margin = $paddingNone
 		$flowLayoutPanel.AutoSize = $true
 		$flowLayoutPanel.Anchor = 'Top'
 		$flowLayoutPanel.FlowDirection = 'TopDown'
 		$flowLayoutPanel.WrapContents = $true
 		$flowLayoutPanel.Controls.Add($labelAppName)
 		If ($showCloseApps) { $flowLayoutPanel.Controls.Add($listBoxCloseApps) }
-		If ($showDefer) {
-			$flowLayoutPanel.Controls.Add($labelDefer)
-		}
-		If ($showCountdown) {
-			$flowLayoutPanel.Controls.Add($labelCountdown)
-		}
+		If ($showDefer) { $flowLayoutPanel.Controls.Add($labelDefer) }
+		If ($showCountdown) { $flowLayoutPanel.Controls.Add($labelCountdown) }
 
 		## Button Close For Me
 		$buttonCloseApps.DataBindings.DefaultDataSourceUpdateMode = 0
-		$buttonCloseApps.Location = '15,0'
+		$buttonCloseApps.Location = New-Object -TypeName 'System.Drawing.Point' -ArgumentList 15,5
 		$buttonCloseApps.Name = 'buttonCloseApps'
 		$buttonCloseApps.Size = $buttonSize
 		$buttonCloseApps.TabIndex = 5
@@ -6719,10 +6780,10 @@ Function Show-WelcomePrompt {
 		## Button Defer
 		$buttonDefer.DataBindings.DefaultDataSourceUpdateMode = 0
 		If (-not $showCloseApps) {
-			$buttonDefer.Location = '15,0'
+			$buttonDefer.Location = New-Object -TypeName 'System.Drawing.Point' -ArgumentList 15,5
 		}
 		Else {
-			$buttonDefer.Location = '170,0'
+			$buttonDefer.Location = New-Object -TypeName 'System.Drawing.Point' -ArgumentList 170,5
 		}
 		$buttonDefer.Name = 'buttonDefer'
 		$buttonDefer.Size = $buttonSize
@@ -6735,7 +6796,7 @@ Function Show-WelcomePrompt {
 
 		## Button Continue
 		$buttonContinue.DataBindings.DefaultDataSourceUpdateMode = 0
-		$buttonContinue.Location = '325,0'
+		$buttonContinue.Location = New-Object -TypeName 'System.Drawing.Point' -ArgumentList 325,5
 		$buttonContinue.Name = 'buttonContinue'
 		$buttonContinue.Size = $buttonSize
 		$buttonContinue.TabIndex = 7
@@ -6756,18 +6817,17 @@ Function Show-WelcomePrompt {
 		## Button Abort (Hidden)
 		$buttonAbort.DataBindings.DefaultDataSourceUpdateMode = 0
 		$buttonAbort.Name = 'buttonAbort'
-		$buttonAbort.Size = '1,1'
+		$buttonAbort.Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 1,1
 		$buttonAbort.TabStop = $false
 		$buttonAbort.DialogResult = 'Abort'
 		$buttonAbort.TabIndex = 5
+		$buttonAbort.Visible = $false
 		$buttonAbort.UseVisualStyleBackColor = $true
 		$buttonAbort.add_Click($buttonAbort_OnClick)
 
 		## Form Welcome
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		$System_Drawing_Size.Height = 0
-		$System_Drawing_Size.Width = 0
-		$formWelcome.Size = $System_Drawing_Size
+		$formWelcome.Size = $defaultControlSize
+		$formWelcome.MinimumSize = $defaultControlSize
 		$formWelcome.Padding = $paddingNone
 		$formWelcome.Margin = $paddingNone
 		$formWelcome.DataBindings.DefaultDataSourceUpdateMode = 0
@@ -6782,32 +6842,22 @@ Function Show-WelcomePrompt {
 		$formWelcome.Icon = New-Object -TypeName 'System.Drawing.Icon' -ArgumentList $AppDeployLogoIcon
 		$formWelcome.AutoSize = $true
 		$formWelcome.Controls.Add($pictureBanner)
-		$formWelcome.Controls.Add($flowLayoutPanel)
 
 		## Panel Button
-		$System_Drawing_Point = New-Object -TypeName 'System.Drawing.Point'
-		$System_Drawing_Point.X = 0
-		# Calculate the position of the panel relative to the size of the form
-		$System_Drawing_Point.Y = (($formWelcome.Size | Select-Object -ExpandProperty 'Height') - 10)
-		$panelButtons.Location = $System_Drawing_Point
-		$System_Drawing_Size = New-Object -TypeName 'System.Drawing.Size'
-		$System_Drawing_Size.Height = 40
-		$System_Drawing_Size.Width = 450
-		$panelButtons.Size = $System_Drawing_Size
+		$panelButtons.MinimumSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 450,34
+		$panelButtons.Size = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 450,34
+		$panelButtons.MaximumSize = New-Object -TypeName 'System.Drawing.Size' -ArgumentList 450,34
 		$panelButtons.AutoSize = $true
-		$panelButtons.Anchor = 'Top'
-		$padding = New-Object -TypeName 'System.Windows.Forms.Padding'
-		$padding.Top = 0
-		$padding.Bottom = 0
-		$padding.Left = 0
-		$padding.Right = 0
-		$panelButtons.Margin = $padding
+		$panelButtons.Padding = $paddingNone
+		$panelButtons.Margin = $paddingNone
 		If ($showCloseApps) { $panelButtons.Controls.Add($buttonCloseApps) }
 		If ($showDefer) { $panelButtons.Controls.Add($buttonDefer) }
 		$panelButtons.Controls.Add($buttonContinue)
 
-		## Add the Buttons Panel to the form
-		$formWelcome.Controls.Add($panelButtons)
+		## Add the Buttons Panel to the flowPanel
+		$flowLayoutPanel.Controls.Add($panelButtons)
+		## Add FlowPanel to the form
+		$formWelcome.Controls.Add($flowLayoutPanel)
 
 		## Save the initial state of the form
 		$formWelcomeWindowState = $formWelcome.WindowState
@@ -6894,6 +6944,8 @@ Function Show-InstallationRestartPrompt {
 .PARAMETER NoCountdown
 	Specifies not to show a countdown, just the Restart Now and Restart Later buttons.
 	The UI will restore/reposition itself persistently based on the interval value specified in the config file.
+.PARAMETER NoSilentRestart
+	Specifies whether the restart should be triggered when Deploy mode is silent or very silent.
 .EXAMPLE
 	Show-InstallationRestartPrompt -Countdownseconds 600 -CountdownNoHideSeconds 60
 .EXAMPLE
@@ -6911,6 +6963,8 @@ Function Show-InstallationRestartPrompt {
 		[ValidateNotNullorEmpty()]
 		[int32]$CountdownNoHideSeconds = 30,
 		[Parameter(Mandatory=$false)]
+		[bool]$NoSilentRestart = $true,
+		[Parameter(Mandatory=$false)]
 		[switch]$NoCountdown = $false
 	)
 
@@ -6920,9 +6974,16 @@ Function Show-InstallationRestartPrompt {
 		Write-FunctionHeaderOrFooter -CmdletName ${CmdletName} -CmdletBoundParameters $PSBoundParameters -Header
 	}
 	Process {
-		## Bypass if in non-interactive mode
+		## If in non-interactive mode
 		If ($deployModeSilent) {
-			Write-Log -Message "Bypass Installation Restart Prompt [Mode: $deployMode]." -Source ${CmdletName}
+            If ($NoSilentRestart -eq $false) {
+                Write-Log -Message "Triggering restart silently, because the deploy mode is set to [$deployMode] and [NoSilentRestart] is disabled. Timeout is set to [$CountdownSeconds] seconds." -Source ${CmdletName}
+                Start-Sleep -Seconds $CountdownSeconds
+                Restart-Computer -Force
+            }
+            Else {
+                Write-Log -Message "Skipping restart, because the deploy mode is set to [$deployMode] and [NoSilentRestart] is enabled." -Source ${CmdletName}
+            }
 			Return
 		}
 		## Get the parameters passed to the function for invoking the function asynchronously
@@ -7363,7 +7424,7 @@ Function Show-InstallationProgress {
 		[ValidateNotNullorEmpty()]
 		[string]$StatusMessage = $configProgressMessageInstall,
 		[Parameter(Mandatory=$false)]
-		[ValidateSet('Default','BottomRight')]
+		[ValidateSet('Default','BottomRight','TopCenter')]
 		[string]$WindowLocation = 'Default',
 		[Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
@@ -7410,90 +7471,68 @@ Function Show-InstallationProgress {
 			$script:ProgressRunspace.SessionStateProxy.SetVariable('windowLocation', $windowLocation)
 			$script:ProgressRunspace.SessionStateProxy.SetVariable('topMost', $topMost.ToString())
 			$script:ProgressRunspace.SessionStateProxy.SetVariable('appDeployLogoBanner', $appDeployLogoBanner)
-			$script:ProgressRunspace.SessionStateProxy.SetVariable('appDeployLogoBannerHeight', $appDeployLogoBannerHeight)
-			$script:ProgressRunspace.SessionStateProxy.SetVariable('appDeployLogoBannerHeightDifference', $appDeployLogoBannerHeightDifference)
 			$script:ProgressRunspace.SessionStateProxy.SetVariable('ProgressStatusMessage', $statusMessage)
 			$script:ProgressRunspace.SessionStateProxy.SetVariable('AppDeployLogoIcon', $AppDeployLogoIcon)
-			$script:ProgressRunspace.SessionStateProxy.SetVariable('dpiScale', $dpiScale)
 
 			#  Add the script block to be executed in the progress runspace
 			$progressCmd = [PowerShell]::Create().AddScript({
 				[string]$xamlProgressString = @'
-							<Window
-							xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-							xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-							x:Name="Window" Title="PSAppDeployToolkit"
-							MaxHeight="%MaxHeight%" MinHeight="%MinHeight%" Height="%Height%"
-							MaxWidth="456" MinWidth="456" Width="456" Padding="0,0,0,0" Margin="0,0,0,0"
-							WindowStartupLocation = "Manual"
-							Top="0"
-							Left="0"
-							Topmost="True"
-							ResizeMode="NoResize"
-							Icon=""
-							ShowInTaskbar="True">
-							<Window.Resources>
-								<Storyboard x:Key="Storyboard1" RepeatBehavior="Forever">
-									<DoubleAnimationUsingKeyFrames BeginTime="00:00:00" Storyboard.TargetName="ellipse" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(RotateTransform.Angle)">
-									<SplineDoubleKeyFrame KeyTime="00:00:02" Value="360"/>
-									</DoubleAnimationUsingKeyFrames>
-								</Storyboard>
-							</Window.Resources>
-							<Window.Triggers>
-								<EventTrigger RoutedEvent="FrameworkElement.Loaded">
-									<BeginStoryboard Storyboard="{StaticResource Storyboard1}"/>
-								</EventTrigger>
-							</Window.Triggers>
-							<Grid Background="#F0F0F0">
-								<Grid.RowDefinitions>
-									<RowDefinition Height="%BannerHeight%"/>
-									<RowDefinition Height="100"/>
-								</Grid.RowDefinitions>
-								<Grid.ColumnDefinitions>
-									<ColumnDefinition Width="45"></ColumnDefinition>
-									<ColumnDefinition Width="*"></ColumnDefinition>
-								</Grid.ColumnDefinitions>
-								<Image x:Name = "ProgressBanner" Grid.ColumnSpan="2" Margin="0,0,0,0" Source=""></Image>
-								<TextBlock x:Name = "ProgressText" Grid.Row="1" Grid.Column="1" Margin="0,5,45,10" Text="" FontSize="15" FontFamily="Microsoft Sans Serif" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" Padding="15" TextWrapping="Wrap"></TextBlock>
-								<Ellipse x:Name = "ellipse" Grid.Row="1" Grid.Column="0" Margin="0,0,0,0" StrokeThickness="5" RenderTransformOrigin="0.5,0.5" Height="25" Width="25" HorizontalAlignment="Right" VerticalAlignment="Center">
-									<Ellipse.RenderTransform>
-										<TransformGroup>
-											<ScaleTransform/>
-											<SkewTransform/>
-											<RotateTransform/>
-										</TransformGroup>
-									</Ellipse.RenderTransform>
-									<Ellipse.Stroke>
-										<LinearGradientBrush EndPoint="0.445,0.997" StartPoint="0.555,0.003">
-											<GradientStop Color="White" Offset="0"/>
-											<GradientStop Color="#008000" Offset="1"/>
-										</LinearGradientBrush>
-									</Ellipse.Stroke>
-								</Ellipse>
-								</Grid>
-							</Window>
+				<Window
+				xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+				xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+				x:Name="Window" Title="PSAppDeployToolkit"
+				Padding="0,0,0,0" Margin="0,0,0,0"
+				WindowStartupLocation = "Manual"
+				Icon=""
+				Top="0"
+				Left="0"
+				Topmost="True"
+				ResizeMode="NoResize"
+				ShowInTaskbar="True" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" SizeToContent="WidthAndHeight">
+					<Window.Resources>
+					<Storyboard x:Key="Storyboard1" RepeatBehavior="Forever">
+					<DoubleAnimationUsingKeyFrames BeginTime="00:00:00" Storyboard.TargetName="ellipse" Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[2].(RotateTransform.Angle)">
+						<SplineDoubleKeyFrame KeyTime="00:00:02" Value="360"/>
+					</DoubleAnimationUsingKeyFrames>
+					</Storyboard>
+					</Window.Resources>
+					<Window.Triggers>
+					<EventTrigger RoutedEvent="FrameworkElement.Loaded">
+					<BeginStoryboard Storyboard="{StaticResource Storyboard1}"/>
+					</EventTrigger>
+					</Window.Triggers>
+					<Grid Background="#F0F0F0" MinWidth="450" MaxWidth="450" Width="450">
+					<Grid.RowDefinitions>
+					<RowDefinition Height="*"/>
+					<RowDefinition Height="*"/>
+					</Grid.RowDefinitions>
+					<Grid.ColumnDefinitions>
+					<ColumnDefinition MinWidth="50" MaxWidth="50" Width="50"></ColumnDefinition>
+					<ColumnDefinition MinWidth="400" MaxWidth="400" Width="400"></ColumnDefinition>
+					</Grid.ColumnDefinitions>
+					<Image x:Name = "ProgressBanner" Grid.ColumnSpan="2" Margin="0,0,0,0" Source="" Grid.Row="0"/>
+					<TextBlock x:Name = "ProgressText" Grid.Row="1" Grid.Column="1" Margin="0,10,50,10" Text="Installation in progress" FontSize="15" FontFamily="Microsoft Sans Serif" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" Padding="10" TextWrapping="Wrap"></TextBlock>
+					<Ellipse x:Name = "ellipse" Grid.Row="1" Grid.Column="0" Margin="0,0,5,0" StrokeThickness="5" RenderTransformOrigin="0.5,0.5" Height="25" Width="25" HorizontalAlignment="Right" VerticalAlignment="Center">
+					<Ellipse.RenderTransform>
+						<TransformGroup>
+							<ScaleTransform/>
+							<SkewTransform/>
+							<RotateTransform/>
+						</TransformGroup>
+					</Ellipse.RenderTransform>
+					<Ellipse.Stroke>
+						<LinearGradientBrush EndPoint="0.445,0.997" StartPoint="0.555,0.003">
+							<GradientStop Color="White" Offset="0"/>
+							<GradientStop Color="#008000" Offset="1"/>
+						</LinearGradientBrush>
+					</Ellipse.Stroke>
+					</Ellipse>
+					</Grid>
+				</Window>
 '@
-				## Replace dummy text with values and turn the string into an xml document variable
-				$xamlProgressString = $xamlProgressString.replace('%BannerHeight%', $appDeployLogoBannerHeight).replace('%Height%', 180 + $appDeployLogoBannerHeightDifference).replace('%MinHeight%', 180 + $appDeployLogoBannerHeightDifference).replace('%MaxHeight%', 200 + $appDeployLogoBannerHeightDifference)
 				[Xml.XmlDocument]$xamlProgress = New-Object 'System.Xml.XmlDocument'
 				$xamlProgress.LoadXml($xamlProgressString)
 				## Set the configurable values using variables added to the runspace from the parent thread
-				#  Calculate the position on the screen where the progress dialog should be placed
-				$screen = [Windows.Forms.Screen]::PrimaryScreen
-				$screenWorkingArea = $screen.WorkingArea
-				[int32]$screenWidth = $screenWorkingArea | Select-Object -ExpandProperty 'Width'
-				[int32]$screenHeight = $screenWorkingArea | Select-Object -ExpandProperty 'Height'
-				#  Set the start position of the Window based on the screen size
-				If ($windowLocation -eq 'BottomRight') {
-					$xamlProgress.Window.Left = [string](($screenWidth / ($dpiscale / 100)) - ($xamlProgress.Window.Width))
-					$xamlProgress.Window.Top = [string](($screenHeight / ($dpiscale / 100)) - ($xamlProgress.Window.Height))
-				}
-				#  Show the default location (Top center)
-				Else {
-					#  Center the progress window by calculating the center of the workable screen based on the width of the screen relative to the DPI scale minus half the width of the progress bar
-					$xamlProgress.Window.Left = [string](($screenWidth / (2 * ($dpiscale / 100) )) - (($xamlProgress.Window.Width / 2)))
-					$xamlProgress.Window.Top = [string]($screenHeight / 9.5)
-				}
 				$xamlProgress.Window.TopMost = $topMost
 				$xamlProgress.Window.Icon = $AppDeployLogoIcon
 				$xamlProgress.Window.Grid.Image.Source = $appDeployLogoBanner
@@ -7504,13 +7543,40 @@ Function Show-InstallationProgress {
 				$script:ProgressSyncHash.Window = [Windows.Markup.XamlReader]::Load($progressReader)
 				#  Grey out the X button
 				$script:ProgressSyncHash.Window.add_Loaded({
-					[IntPtr]$windowHandle = (New-Object -TypeName System.Windows.Interop.WindowInteropHelper -ArgumentList $this).Handle
-					If ($null -ne $windowHandle) {
-						[IntPtr]$menuHandle = [PSADT.UiAutomation]::GetSystemMenu($windowHandle, $false)
-						If ($menuHandle -ne [IntPtr]::Zero) {
-							[PSADT.UiAutomation]::EnableMenuItem($menuHandle, 0xF060, 0x00000001)
-							[PSADT.UiAutomation]::DestroyMenu($menuHandle)
+					#  Calculate the position on the screen where the progress dialog should be placed
+					[int32]$screenWidth = [System.Windows.SystemParameters]::WorkArea.Width
+					[int32]$screenHeight = [System.Windows.SystemParameters]::WorkArea.Height
+					[int32]$screenCenterWidth = $screenWidth - $script:ProgressSyncHash.Window.Width
+					[int32]$screenCenterHeight = $screenHeight - $script:ProgressSyncHash.Window.Height
+					#  Set the start position of the Window based on the screen size
+					If ($windowLocation -eq 'BottomRight') {
+						#  Put the window in the corner
+						$script:ProgressSyncHash.Window.Left = [Double]($screenCenterWidth)
+						$script:ProgressSyncHash.Window.Top = [Double]($screenCenterHeight)
+					}
+					ElseIf($windowLocation -eq 'TopCenter'){
+						$script:ProgressSyncHash.Window.Left = [Double]($screenCenterWidth / 2)
+						$script:ProgressSyncHash.Window.Top = [Double]($screenCenterHeight / 6)
+					}
+					Else {
+						#  Center the progress window by calculating the center of the workable screen based on the width of the screen minus half the width of the progress bar
+						$script:ProgressSyncHash.Window.Left = [Double]($screenCenterWidth / 2)
+						$script:ProgressSyncHash.Window.Top = [Double]($screenCenterHeight / 2)
+					}
+					#  Grey out the X button
+					try {
+						$windowHandle = (New-Object -TypeName System.Windows.Interop.WindowInteropHelper -ArgumentList $this).Handle
+						If ($windowHandle -and ($windowHandle -ne [IntPtr]::Zero)) {
+							$menuHandle = [PSADT.UiAutomation]::GetSystemMenu($windowHandle, $false)
+							If ($menuHandle -and ($menuHandle -ne [IntPtr]::Zero)) {
+								[PSADT.UiAutomation]::EnableMenuItem($menuHandle, 0xF060, 0x00000001)
+								[PSADT.UiAutomation]::DestroyMenu($menuHandle)
+							}
 						}
+					}
+					catch {
+						# Not a terminating error if we can't grey out the button
+						Write-Log "Failed to grey out the Close button." -Severity 2 -Source ${CmdletName}
 					}
 				})
 				#  Prepare the ProgressText variable so we can use it to change the text in the text area
@@ -7528,7 +7594,7 @@ Function Show-InstallationProgress {
 			$progressCmd.Runspace = $script:ProgressRunspace
 			Write-Log -Message "Spin up progress dialog in a separate thread with message: [$statusMessage]." -Source ${CmdletName}
 			#  Invoke the progress runspace
-			$progressData = $progressCmd.BeginInvoke()
+			$null = $progressCmd.BeginInvoke()
 			#  Allow the thread to be spun up safely before invoking actions against it.
 			Start-Sleep -Seconds 1
 			If ($script:ProgressSyncHash.Error) {
@@ -9138,7 +9204,7 @@ Function Test-Battery {
 		}
 		$SystemTypePowerStatus.Add('BatteryLifePercent', $PowerStatus.BatteryLifePercent)
 
-		## The reported approximate number of seconds of battery life remaining. It will report –1 if the remaining life is unknown because the system is on AC power.
+		## The reported approximate number of seconds of battery life remaining. It will report -1 if the remaining life is unknown because the system is on AC power.
 		[int32]$BatteryLifeRemaining = $PowerStatus.BatteryLifeRemaining
 		$SystemTypePowerStatus.Add('BatteryLifeRemaining', $PowerStatus.BatteryLifeRemaining)
 
@@ -10813,7 +10879,7 @@ If ((-not $appName) -and (-not $ReferredInstallName)){
 	}
 }
 
-## Set up sample variables if Dot Sourcing the script, app details have not been specified, or InstallName not passed as parameter to the script
+## Set up sample variables if Dot Sourcing the script, app details have not been specified
 If (-not $appName) {
 	[string]$appName = $appDeployMainScriptFriendlyName
 	If (-not $appVendor) { [string]$appVendor = 'PS' }
@@ -10822,24 +10888,27 @@ If (-not $appName) {
 	If (-not $appRevision) { [string]$appRevision = '01' }
 	If (-not $appArch) { [string]$appArch = '' }
 }
-If ($ReferredInstallTitle) { [string]$installTitle = $ReferredInstallTitle }
+
+## Sanitize the application details, as they can cause issues in the script
+[string]$appVendor = (Remove-InvalidFileNameChars -Name ($appVendor.Trim()))
+[string]$appName = (Remove-InvalidFileNameChars -Name ($appName.Trim()))
+[string]$appVersion = (Remove-InvalidFileNameChars -Name ($appVersion.Trim()))
+[string]$appArch = (Remove-InvalidFileNameChars -Name ($appArch.Trim()))
+[string]$appLang = (Remove-InvalidFileNameChars -Name ($appLang.Trim()))
+[string]$appRevision = (Remove-InvalidFileNameChars -Name ($appRevision.Trim()))
+
+## Build the Installation Title
+If ($ReferredInstallTitle) { [string]$installTitle = (Remove-InvalidFileNameChars -Name ($ReferredInstallTitle.Trim())) }
 If (-not $installTitle) {
-	[string]$installTitle = ("$appVendor $appName $appVersion").Trim()
+	[string]$installTitle = "$appVendor $appName $appVersion"
 }
 
 ## Set Powershell window title, in case the window is visible
+[string]$oldPSWindowTitle = $Host.UI.RawUI.WindowTitle
 $Host.UI.RawUI.WindowTitle = "$installTitle - $DeploymentType"
 
-## Sanitize the application details, as they can cause issues in the script
-[string]$appVendor = (Remove-InvalidFileNameChars -Name $appVendor) -replace ' ',''
-[string]$appName = (Remove-InvalidFileNameChars -Name $appName) -replace ' ',''
-[string]$appVersion = (Remove-InvalidFileNameChars -Name $appVersion) -replace ' ',''
-[string]$appArch = (Remove-InvalidFileNameChars -Name $appArch) -replace ' ',''
-[string]$appLang = (Remove-InvalidFileNameChars -Name $appLang) -replace ' ',''
-[string]$appRevision = (Remove-InvalidFileNameChars -Name $appRevision) -replace ' ',''
-
 ## Build the Installation Name
-If ($ReferredInstallName) { [string]$installName = $ReferredInstallName }
+If ($ReferredInstallName) { [string]$installName = (Remove-InvalidFileNameChars -Name $ReferredInstallName) }
 If (-not $installName) {
 	If ($appArch) {
 		[string]$installName = $appVendor + '_' + $appName + '_' + $appVersion + '_' + $appArch + '_' + $appLang + '_' + $appRevision
@@ -10848,8 +10917,7 @@ If (-not $installName) {
 		[string]$installName = $appVendor + '_' + $appName + '_' + $appVersion + '_' + $appLang + '_' + $appRevision
 	}
 }
-[string]$installName = (Remove-InvalidFileNameChars -Name $installName) -replace ' ',''
-[string]$installName = $installName.Trim('_') -replace '[_]+','_'
+[string]$installName = (($installName -replace ' ','').Trim('_') -replace '[_]+','_')
 
 ## Set the Defer History registry path
 [string]$regKeyDeferHistory = "$configToolkitRegPath\$appDeployToolkitName\DeferHistory\$installName"
