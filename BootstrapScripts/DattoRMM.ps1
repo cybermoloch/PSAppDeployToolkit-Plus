@@ -1,6 +1,6 @@
 # Bootstrap script for PSADT+
 # Tested and designed for Datto RMM
-# Version 3.0.0.0
+# Version 3.0.1.0
 
 # REQUIRED PSADT files
 $psadtArchiveUri = ${Env:\PSADT_ArchiveURI}
@@ -157,6 +157,10 @@ if (Test-Path ("Env:\Action")) {
             Write-Output ('Action set for UNINSTALL')
             $psadtType = '-DeploymentType \"Uninstall\"'
         }
+        'REPAIR' {
+            Write-Output ('Action set for REPAIR')
+            $psadtType = '-DeploymentType \"Repair\"'
+        }
         default {
             # In case the action variable was created incorrectly
             Write-Error -Message ('Unknown action: ' + ${Env:\Action})
@@ -188,12 +192,14 @@ $psExecArgs = ($psExecArgs + $installPath + '\Deploy-Application.exe" "' + $psad
 # Beings the installtion Program
 if (Test-Path $psExecPath) {
     Write-Output ('Starting installer program with the command: ' + $psExecPath + ' ' + $psExecArgs)
-    Start-Process -FilePath $psExecPath -ArgumentList $psExecArgs -WorkingDirectory $installPath -Wait
+    $psExecProcess = Start-Process -FilePath $psExecPath -ArgumentList $psExecArgs -WorkingDirectory $installPath -Wait -PassThru
     }
 else {
     Write-Warning ('Running installer failed. ' + $psExecPath + ' not found')
     Exit -1
 }
+
+$psadtExitCode = $psExecProcess.ExitCode
 
 # Get log from PSADT and dump to stdout for RMM
 # By default, PSADT log files are saved to $envWinDir\Logs\Software which doesn't exist here
@@ -239,16 +245,11 @@ If (Test-Path ($psadtLogPath)) {
     Write-Error ('Unable to retreive log directory.')
 }
 
-# Get exitcode JSON from PSADT
-If (Test-Path ($psadtSupportPath + '\exitCode.json')) {
-    $psadtExitCode = (Get-Content -Path ($psadtSupportPath + '\exitCode.json') | ConvertFrom-Json)
-}
-
 # Clean-up temporary installation directory
 if (Test-Path $installPath) {
     Write-Output ('')
     Write-Output ('*******************************************************************************')
-    Write-Output ('Removing temporary installation directory.')
+    Write-Output ('Removing temporary installation directory: ' + $installPath)
     Remove-Item -Path $installPath -Force -Recurse
 }
 
