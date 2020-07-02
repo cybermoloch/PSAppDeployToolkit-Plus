@@ -1,6 +1,16 @@
 # Bootstrap script for PSADT+
 # Tested and designed for Datto RMM
-# Version 3.0.3.0
+# Version 3.1.0.1
+
+# Workaround for running as User Task
+If (-not (Test-Path -Path Env:\CS_ONLINETASK) ) {
+    $envRegPath = 'HKLM:\SOFTWARE\CentraStage\Env'
+    # Exclude Environment Variables that are pulled when using PSDrive to read Registry
+    $excludeEnv = @('PSChildName','PSDrive','PSParentPath','PSPath','PSProvider')
+    (Get-ItemProperty $envRegPath).PSObject.Properties |
+        Where-Object -FilterScript { -not ($PSItem.Name -in $excludeEnv) } |
+        ForEach-Object -Process { Set-Item -Path ('Env:\' + $PSItem.Name) -Value $PSItem.Value }
+}
 
 # REQUIRED PSADT files
 $psadtArchiveUri = ${Env:\PSADT_ArchiveURI}
@@ -116,7 +126,7 @@ foreach ($psadtItem in @($psadtArchive,$psadtExtras,$psadtCustom,$psadtSettings,
         Write-Warning ($psadtItem + ' not found')
         If ( ($psadtItem -like $psadtArchive) -or ($psadtItem -like $psadtCustom) -or ($psadtItem -like $psadtExtras) ) {
             If ( Test-Path -Path ($psadtHomePath + '\' + $psadtItem) ) {
-                Switch -exact ($psadItem) {
+                Switch -exact ($psadtItem) {
                     $psadtArchive { Expand-Archive -Path ($psadtHomePath + '\' + $psadtArchive) -DestinationPath $installPath -Force }
                     $psadtExtras { Expand-Archive -Path ($psadtHomePath + '\' + $psadtExtras) -DestinationPath $psadtExtrasPath -Force }
                     $psadtCustom { Expand-Archive -Path ($psadtHomePath + '\' + $psadtCustom) -DestinationPath $psadtPath -Force }    
