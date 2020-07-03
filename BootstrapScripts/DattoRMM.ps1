@@ -1,6 +1,6 @@
 # Bootstrap script for PSADT+
 # Tested and designed for Datto RMM
-# Version 3.1.0.1
+# Version 3.1.2
 
 # Workaround for running as User Task
 If (-not (Test-Path -Path Env:\CS_ONLINETASK) ) {
@@ -156,7 +156,7 @@ If (Test-Path -Path ($psadtPath + '\AppDeployToolkitConfig.xml')) {
     }   
     If ($psadtLogPathNoAdmin) {
         Write-Output ('Push NoAdmin Log file location: ' + $psadtLogPathNoAdmin)
-        $psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_NoAdminRights = $psadtLogPathNoAdmin
+        $psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_LogPathNoAdminRights = $psadtLogPathNoAdmin
     }
     If ($msiLogPath) {
         Write-Output ('Pushing MSI Log file location: ' + $msiLogPath)
