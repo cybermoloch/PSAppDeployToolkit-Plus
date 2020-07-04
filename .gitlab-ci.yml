@@ -1,34 +1,34 @@
 .shared_windows_runners:
-    tags:
-    - shared-windows
-    - windows
-    - windows-1809
+  tags:
+  - shared-windows
+  - windows
+  - windows-1809
   
-  stages:
-    - build
-    - test
+stages:
+  - build
+  - test
   
-  before_script:
-   - Set-Variable -Name "time" -Value (date -Format "%H:%m")
-   - echo ${time}
-   - echo "started by ${GITLAB_USER_NAME}"
+before_script:
+ - Set-Variable -Name "time" -Value (date -Format "%H:%m")
+ - echo ${time}
+ - echo "started by ${GITLAB_USER_NAME}"
+ 
+build:
+  extends:
+  - .shared_windows_runners
+  stage: build
+  interruptible: true
+  script:
+  - echo "running scripts in the build job"
+  - .\Build-PsadtPlus.ps1
+  artifacts:
+    paths:
+     - PsadtPlus*.zip
+    expire_in: 1 week
   
-  build:
-    extends:
-    - .shared_windows_runners
-    stage: build
-    interruptible: true
-    script:
-    - echo "running scripts in the build job"
-    - .\Build-PsadtPlus.ps1
-    artifacts:
-      paths:
-       - PsadtPlus*.zip
-      expire_in: 1 week
-  
-  test:
-    extends:
-    - .shared_windows_runners
-    stage: test
-    script:
-    - echo "running scripts in the test job"
+test:
+  extends:
+  - .shared_windows_runners
+  stage: test
+  script:
+  - echo "running scripts in the test job"
