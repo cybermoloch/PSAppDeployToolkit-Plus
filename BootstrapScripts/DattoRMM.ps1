@@ -1,8 +1,38 @@
-# Bootstrap script for PSADT+
-# Tested and designed for Datto RMM
-# Version 3.1.2
+<#PSScriptInfo
+
+.VERSION 3.2.1
+
+.AUTHOR cybermoloch@magitekai.com
+
+.COPYRIGHT 2020 CyberMoloch. All Rights Reserved.
+
+.LICENSEURI https://gitlab.com/cybermoloch/psappdeploytoolkit-plus/-/blob/master/LICENSE
+
+.PROJECTURI https://gitlab.com/cybermoloch/psappdeploytoolkit-plus/
+
+.RELEASENOTES
+    Added metadata
+
+#>
+
+<#
+.SYNOPSIS
+    Bootstrap script for Datto RMM to launch PSAppDeployToolkit-Plus
+
+.DESCRIPTION
+    Bootstrap script for Datto RMM to launch PSAppDeployToolkit-Plus
+    
+.NOTES
+
+.LINK
+    https://gitlab.com/cybermoloch/psappdeploytoolkit-plus/
+
+.LINK
+    https://www.magitekai.com/#/blog/psadt-plus/2020/psadt-plus-introduction/
+#>
 
 # Workaround for running as User Task
+# https://www.magitekai.com/#/blog/datto-rmm/2020/workaround-missing-variables
 If (-not (Test-Path -Path Env:\CS_ONLINETASK) ) {
     $envRegPath = 'HKLM:\SOFTWARE\CentraStage\Env'
     # Exclude Environment Variables that are pulled when using PSDrive to read Registry
