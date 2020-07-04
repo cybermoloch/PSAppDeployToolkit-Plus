@@ -53,8 +53,12 @@ Copy-Item -Path 'Toolkit\AppDeployToolkit\AppDeployToolkitExtensions.ps1' -Desti
 Copy-Item -Path 'Toolkit\AppDeployToolkit\AppDeployToolkitBanner.png' -Destination ($toolkitPath + '\AppDeployToolkitBanner.png') -Force
 Copy-Item -Path 'Toolkit\AppDeployToolkit\AppDeployToolkitLogo.ico' -Destination ($toolkitPath + '\AppDeployToolkitLogo.ico') -Force
 
-If (Test-Path -Path Env:\CI_COMMIT_SHORT_SHA) {
-    $PsadtPlusFilename = ('PSADTPlus-' + ${env:CI_COMMIT_SHORT_SHA} + '.zip')
+If (Test-Path -Path Env:\CI_COMMIT_TAFG) {
+    $PsadtPlusFilename = ('PSADTPlus-' + ${env:CI_COMMIT_TAG} + '.zip')
+} else {
+    If (Test-Path -Path Env:\CI_COMMIT_SHORT_SHA) {
+        $PsadtPlusFilename = ('PSADTPlus-' + ${env:CI_COMMIT_SHORT_SHA} + '.zip')
+    }
 } else {
     $PsadtPlusFilename = 'PSADTPlus.zip'
 }
