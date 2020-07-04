@@ -1,7 +1,7 @@
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ProgressPreference = 'SilentlyContinue'
 
-If (${env:CI_JOB_NAME} -eq 'build:upstream_gitmaster') {
+If (${env:CI_JOB_NAME} -like 'build:upstream_gitmaster') {
     $PsadtUri = 'https://github.com/PSAppDeployToolkit/PSAppDeployToolkit/archive/master.zip'
 }
 else {
@@ -33,7 +33,7 @@ Write-Output 'Extracting archives...'
 Get-ChildItem -Path '*.zip' | ForEach-Object -Process { Expand-Archive -Path $PSItem -Force }
 
 Write-Output 'Copying upstream PSApplDeployToolkit files...'
-If (${env:CI_JOB_NAME} -eq 'build:upstream_gitmaster') {
+If (${env:CI_JOB_NAME} -like 'build:upstream_gitmaster') {
     Copy-Item -Path 'PSAppDeployToolkit-master\Toolkit\*' -Destination 'PSADTPlus' -Recurse -Force
 }
 else {
