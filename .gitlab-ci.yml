@@ -23,7 +23,7 @@ build:
   - .\Build-PsadtPlus.ps1
   artifacts:
     paths:
-     - PsadtPlus*.zip
+     - PSADTPlus*.zip
     expire_in: 1 week
   
 test:
