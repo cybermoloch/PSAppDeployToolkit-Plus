@@ -13,7 +13,7 @@ before_script:
  - echo ${time}
  - echo "started by ${GITLAB_USER_NAME}"
  
-build:
+build:upstream_release:
   extends:
   - .shared_windows_runners
   stage: build
@@ -25,6 +25,19 @@ build:
     paths:
      - PSADTPlus*.zip
     expire_in: 1 week
+
+build:upsteam_gitmaster:
+  extends:
+  - .shared_windows_runners
+  stage: build
+  interruptible: true
+  script:
+  - echo "running scripts in the build job"
+  - .\Build-PsadtPlus.ps1
+  artifacts:
+    paths:
+     - PSADTPlus*.zip
+    expire_in: 1 week    
   
 test:
   extends:

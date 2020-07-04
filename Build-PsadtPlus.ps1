@@ -1,7 +1,12 @@
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ProgressPreference = 'SilentlyContinue'
 
-$PsadtUri = 'https://github.com/PSAppDeployToolkit/PSAppDeployToolkit/releases/download/3.8.2/PSAppDeployToolkit_v3.8.2.zip'
+If (${env:CI_JOB_NAME} -eq 'build:upstream_gitmaster') {
+    $PsadtUri = 'https://github.com/PSAppDeployToolkit/PSAppDeployToolkit/archive/master.zip'
+}
+else {
+    $PsadtUri = 'https://github.com/PSAppDeployToolkit/PSAppDeployToolkit/releases/download/3.8.2/PSAppDeployToolkit_v3.8.2.zip'    
+}
 $NtfsSecurityUri = 'https://github.com/raandree/NTFSSecurity/releases/download/4.2.6/NTFSSecurity.zip'
 $VcRedistUri = 'https://github.com/aaronparker/VcRedist/archive/v2.0.163.zip'
 $SetUserFtaUri = 'https://kolbi.cz/SetUserFTA.zip'
@@ -28,7 +33,12 @@ Write-Output 'Extracting archives...'
 Get-ChildItem -Path '*.zip' | ForEach-Object -Process { Expand-Archive -Path $PSItem -Force }
 
 Write-Output 'Copying upstream PSApplDeployToolkit files...'
-Copy-Item -Path 'PSAppDeployToolkit\Toolkit\*' -Destination 'PSADTPlus' -Recurse -Force
+If (${env:CI_JOB_NAME} -eq 'build:upstream_gitmaster') {
+    Copy-Item -Path 'PSAppDeployToolkit-master\Toolkit\*' -Destination 'PSADTPlus' -Recurse -Force
+}
+else {
+    Copy-Item -Path 'PSAppDeployToolkit\Toolkit\*' -Destination 'PSADTPlus' -Recurse -Force    
+}
 $PsadtLicenseUri = 'https://raw.githubusercontent.com/PSAppDeployToolkit/PSAppDeployToolkit/master/LICENSE'
 Invoke-WebRequest -Uri $PsadtLicenseUri -OutFile 'PSADTPlus\LICENSE'
 
@@ -53,7 +63,7 @@ Copy-Item -Path 'Toolkit\AppDeployToolkit\AppDeployToolkitExtensions.ps1' -Desti
 Copy-Item -Path 'Toolkit\AppDeployToolkit\AppDeployToolkitBanner.png' -Destination ($toolkitPath + '\AppDeployToolkitBanner.png') -Force
 Copy-Item -Path 'Toolkit\AppDeployToolkit\AppDeployToolkitLogo.ico' -Destination ($toolkitPath + '\AppDeployToolkitLogo.ico') -Force
 
-If (Test-Path -Path Env:\CI_COMMIT_TAFG) {
+If (Test-Path -Path Env:\CI_COMMIT_TAG) {
     $PsadtPlusFilename = ('PSADTPlus-' + ${env:CI_COMMIT_TAG} + '.zip')
 }
 elseIf (Test-Path -Path Env:\CI_COMMIT_SHORT_SHA) {
