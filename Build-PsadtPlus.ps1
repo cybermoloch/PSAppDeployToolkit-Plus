@@ -34,7 +34,7 @@ Get-ChildItem -Path '*.zip' | ForEach-Object -Process { Expand-Archive -Path $PS
 
 Write-Output 'Copying upstream PSApplDeployToolkit files...'
 If (${env:CI_JOB_NAME} -eq 'build:upstream_gitmaster') {
-    Copy-Item -Path 'PSAppDeployToolkit-master\Toolkit\*' -Destination 'PSADTPlus' -Recurse -Force
+    Copy-Item -Path 'PSAppDeployToolkit\PSAppDeployToolkit-master\Toolkit\*' -Destination 'PSADTPlus' -Recurse -Force
 }
 else {
     Copy-Item -Path 'PSAppDeployToolkit\Toolkit\*' -Destination 'PSADTPlus' -Recurse -Force    
