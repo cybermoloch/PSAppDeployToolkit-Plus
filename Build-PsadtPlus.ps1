@@ -33,7 +33,7 @@ $PsadtLicenseUri = 'https://raw.githubusercontent.com/PSAppDeployToolkit/PSAppDe
 Invoke-WebRequest -Uri $PsadtLicenseUri -OutFile 'PSADTPlus\LICENSE'
 
 Write-Output 'Copying NTFSSecurity Module files...'
-Copy-Item -Path 'NTFSSecurity' -Destination $modulesPath -Recurse -Force
+Copy-Item -Path 'NTFSSecurity\NTFSSecurity' -Destination ($modulesPath + '\NTFSSecurity') -Recurse -Force
 $NtfsSecurityLicenseUri = 'https://raw.githubusercontent.com/raandree/NTFSSecurity/master/LICENSE'
 Invoke-WebRequest -Uri $NtfsSecurityLicenseUri -OutFile ($modulesPath + '\NTFSSecurity\LICENSE')
 
