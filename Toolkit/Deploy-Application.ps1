@@ -157,94 +157,105 @@ Try {
 
 		## <Perform Pre-Installation tasks here>
 
-		# If no x86 download is specified and the OS is 32-bit, presents error and exits
-		If ( (-Not $deploySettings.appDetails.downloadInfo.x86.uri ) -and ( -Not $Is64Bit ) ) {
+		# $appArch isn't validated so could be prone to false positives?
+		If ( ($appArch -eq 'x64') -and (-Not $Is64Bit) ) {
 			Show-InstallationPrompt -Message 'This application requires an x64 (64-bit) operating system. Please contact your system administrator for assistance.' -Icon Error -Timeout 60
 			Exit-Script -ExitCode -1
 		}
 
-		# Checks for and waits for internet connectivity before proceeding
-		# If not internet connection is detected, presents user with an message that internet is required
-		If (-Not (Test-InternetConnection)) {
-			$cancelInstall = Show-InstallationPrompt -Message "No internet connection detected. Please connect to the internet to continue.`nAn internet connection is required to download the installation package.`nIf you would like to cancel the installation to try again later, please click the `"Cancel`" button." -Icon Information -ButtonRightText 'Cancel'
-				If ($cancelInstall -eq 'Cancel') {
-					Write-Log -Message 'Internet connection not detected and the user cancelled the install.'
-					Exit-Script -ExitCode -1
-				}
-			Do {
-				Start-Sleep -Seconds 5
-			} Until (Test-InternetConnection)			
-		}
-
-		# Downloads the installer package for the correct architecture
-		Show-InstallationProgress -StatusMessage 'Downloading installation package... Please wait.'
-
-		# Set URI based on download settings and OS architecture
-		If (($deploySettings.appDetails.downloadInfo.x64.uri) -and ($Is64Bit)) {
-			$packageUri = ($deploySettings.appDetails.downloadInfo.x64.uri)
-			$installerSha256 = ($deploySettings.appDetails.downloadInfo.x64.sha256)
-			$appArch = 'x64'
-		}
-		else {
-			$packageUri = ($deploySettings.appDetails.downloadInfo.x86.uri)
-			$installerSha256 = ($deploySettings.appDetails.downloadInfo.x86.sha256)
-			$appArch = 'x86'
-		}
-
-		# Expand variables in URIs
-		$uriCount = 0
-        do {
-            $packageUri[$uriCount] = ($ExecutionContext.InvokeCommand.ExpandString($packageUri[$uriCount]))
-            $uriCount++
-        }
-        while ($packageUri[$uriCount])
-
-		# Get filename from the URI
-		$packageFilename = (Split-Path -Path $packageUri[0] -Leaf)
-		
-		# Strip any part of filename after ? (query strings for protected downloads)
-		If ($packageFilename -match '\?') {
-			$packageFilename = $packageFilename.Substring(0, $packageFilename.IndexOf('?'))    
-		}
-
-		# Get extension of file
-		$packageFileType = (($packageFilename).Split('.')[-1])
-
-		# Set download destination to $dirFiles if exe or msi file, $dirSUpportFiles if zip file
-		Switch -exact ($packageFileType)
-		{
-			'msi' { $destinationPath = $dirFiles }
-			'msix' { $destinationPath = $dirFiles }
-			'msixbundle' { $destinationPath = $dirFiles }
-			'appx' { $destinationPath = $dirFiles }
-			'appxbundle' { $destinationPath = $dirFiles }
-			'exe' { $destinationPath = $dirFiles }
-			'zip' { $destinationPath = $dirSupportFiles }
-			default {
-				Write-Log -Message 'The installer package type was unknown. (Not an .msi, .msix(bundle), .appx(bundle) .exe, or .zip file.)'
-				Show-InstallationPrompt -Message 'Invalid installer package filetype specified. Please contact your system adminstrator for assistance.' -Icon Error -Timeout 60 -ButtonRight 'OK'
+		If ( ($deploySettings.appDetails.downloadInfo.x86.uri) -or ($deploySettings.appDetails.downloadInfo.x64.uri) ) {
+			# If no x86 download is specified and the OS is 32-bit, presents error and exits
+			If ( (-Not $deploySettings.appDetails.downloadInfo.x86.uri ) -and ( -Not $Is64Bit ) ) {
+				Show-InstallationPrompt -Message 'This application requires an x64 (64-bit) operating system. Please contact your system administrator for assistance.' -Icon Error -Timeout 60
 				Exit-Script -ExitCode -1
 			}
-		}
 
-		Write-Log -Message ('Attempting to download ' + $packageFilename)
+			# Checks for and waits for internet connectivity before proceeding
+			# If not internet connection is detected, presents user with an message that internet is required
+			If (-Not (Test-InternetConnection)) {
+				$cancelInstall = Show-InstallationPrompt -Message "No internet connection detected. Please connect to the internet to continue.`nAn internet connection is required to download the installation package.`nIf you would like to cancel the installation to try again later, please click the `"Cancel`" button." -Icon Information -ButtonRightText 'Cancel'
+					If ($cancelInstall -eq 'Cancel') {
+						Write-Log -Message 'Internet connection not detected and the user cancelled the install.'
+						Exit-Script -ExitCode -1
+					}
+				Do {
+					Start-Sleep -Seconds 5
+				} Until (Test-InternetConnection)			
+			}
 
-		If (Get-FileFromUri -Uri $packageUri -Destination ($destinationPath + '\' + $packageFilename) -Sha256 $installerSha256) {
-			Write-Log -Message ($packageFilename + ' sucessfully downloaded to ' + $destinationPath)
+			# Downloads the installer package for the correct architecture
+			Show-InstallationProgress -StatusMessage 'Downloading installation package... Please wait.'
+
+			# Set URI based on download settings and OS architecture
+			If (($deploySettings.appDetails.downloadInfo.x64.uri) -and ($Is64Bit)) {
+				$packageUri = ($deploySettings.appDetails.downloadInfo.x64.uri)
+				$installerSha256 = ($deploySettings.appDetails.downloadInfo.x64.sha256)
+				$appArch = 'x64'
+			}
+			else {
+				$packageUri = ($deploySettings.appDetails.downloadInfo.x86.uri)
+				$installerSha256 = ($deploySettings.appDetails.downloadInfo.x86.sha256)
+				$appArch = 'x86'
+			}
+
+			# Expand variables in URIs
+			$uriCount = 0
+        	do {
+	            $packageUri[$uriCount] = ($ExecutionContext.InvokeCommand.ExpandString($packageUri[$uriCount]))
+            	$uriCount++
+        	}
+        	while ($packageUri[$uriCount])
+
+			# Get filename from the URI
+			$packageFilename = (Split-Path -Path $packageUri[0] -Leaf)
+
+			# Strip any part of filename after ? (query strings for protected downloads)
+			If ($packageFilename -match '\?') {
+				$packageFilename = $packageFilename.Substring(0, $packageFilename.IndexOf('?'))    
+			}
+
+			# Get extension of file
+			$packageFileType = (($packageFilename).Split('.')[-1])
+
+			# Set download destination to $dirFiles if exe or msi file, $dirSUpportFiles if zip file
+			Switch -exact ($packageFileType)
+			{
+				'msi' { $destinationPath = $dirFiles }
+				'msix' { $destinationPath = $dirFiles }
+				'msixbundle' { $destinationPath = $dirFiles }
+				'appx' { $destinationPath = $dirFiles }
+				'appxbundle' { $destinationPath = $dirFiles }
+				'exe' { $destinationPath = $dirFiles }
+				'zip' { $destinationPath = $dirSupportFiles }
+				default {
+					Write-Log -Message 'The installer package type was unknown. (Not an .msi, .msix(bundle), .appx(bundle) .exe, or .zip file.)'
+					Show-InstallationPrompt -Message 'Invalid installer package filetype specified. Please contact your system adminstrator for assistance.' -Icon Error -Timeout 60 -ButtonRight 'OK'
+					Exit-Script -ExitCode -1
+				}
+			}
+
+			Write-Log -Message ('Attempting to download ' + $packageFilename)
+
+			If (Get-FileFromUri -Uri $packageUri -Destination ($destinationPath + '\' + $packageFilename) -Sha256 $installerSha256) {
+				Write-Log -Message ($packageFilename + ' sucessfully downloaded to ' + $destinationPath)
+			}
+			else {
+				Write-Log -Message ($packageFilename + ' failed to download')
+				Show-InstallationPrompt -Message 'Error downloading installer. Please try again later.' -Icon Error -Timeout 60 -ButtonRight 'OK'
+				Exit-Script -ExitCode -1
+			}
+
+			# Extract contents of archive to $dirFiles
+			If ($packageFileType -like 'zip') {
+				Write-Log -Message ('Extracting ' + $packageFilename + ' to ' + $dirFiles)
+				Show-InstallationProgress -StatusMessage 'Extracting installation package... Please wait.'
+				Expand-Archive -Path ($dirSupportFiles + '\' + $packageFilename) -DestinationPath $dirFiles -Force
+			}
 		}
 		else {
-			Write-Log -Message ($packageFilename + ' failed to download')
-			Show-InstallationPrompt -Message 'Error downloading installer. Please try again later.' -Icon Error -Timeout 60 -ButtonRight 'OK'
-			Exit-Script -ExitCode -1
+			Write-Log -Message ('Download URIs not found. Using install files already in ' + $dirFiles)
 		}
-
-		# Extract contents of archive to $dirFiles
-		If ($packageFileType -like 'zip') {
-			Write-Log -Message ('Extracting ' + $packageFilename + ' to ' + $dirFiles)
-			Show-InstallationProgress -StatusMessage 'Extracting installation package... Please wait.'
-			Expand-Archive -Path ($dirSupportFiles + '\' + $packageFilename) -DestinationPath $dirFiles -Force
-		}
-
+		
 		# dotNet and vcRedist Prequisites check and install
 		# should add failure messages to user and exit script if fails
 		Show-InstallationProgress -StatusMessage ('Checking for dependencies')
