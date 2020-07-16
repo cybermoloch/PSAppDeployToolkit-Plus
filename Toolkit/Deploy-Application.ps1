@@ -216,7 +216,7 @@ Try {
 
 			If ($PSADT_MirrorURI) {
 				Write-Log -Message 'Mirror Base URI found'
-				$appMirrorPath = ($appVendor.ToLower() + '/' + $appName + '/' + $appVersion + '/' + $appArch + '/' + $packageFilename)
+				$appMirrorPath = ($appVendor.ToLower() + '/' + $appId + '/' + $appVersion + '/' + $appArch + '/' + $packageFilename)
 				If ($PSADT_MirrorURISAS) {
 					Write-Log -Message 'Mirror URI SAS found'
 					$appMirrorUri = ($PSADT_MirrorURI + $appMirrorPath + $PSADT_MirrorURISAS)
