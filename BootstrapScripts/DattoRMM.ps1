@@ -1,6 +1,6 @@
 <#PSScriptInfo
 
-.VERSION 3.3.1
+.VERSION 3.3.4
 
 .AUTHOR cybermoloch@magitekai.com
 
@@ -62,7 +62,7 @@ $psadtCustom = 'PSADTCustom.zip'
 # Recommended to change location to ${Env:WINDIR}\Logs\Software\PSAppDeployToolkit
 # Using ${Env:\} for environment variables will work here and PSADT
 $psadtLogPath = '${Env:WINDIR}\Logs\Software\PSAppDeployToolkit'
-$psadtLogPathNoAdmin = '${Env:ProgramData}\Logs\Software\PSAppDeployToolkit'
+$psadtLogPathNoAdmin = '${Env:ProgramData}\PSAppDeployToolkit\Logs'
 $msiLogPath = '${Env:WINDIR}\Logs\Software\PSAppDeployToolkit'
 
 $psadtHomePath = (${Env:\ProgramData} + '\PSAppDeployToolkit')
@@ -204,19 +204,23 @@ $msiLogPath = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDe
 Write-Output ('MSI Log file location: ' + $msiLogPath)
 
 
-If ( ( Test-Path -Path ("Env:\PSADT_MirrorURI") ) -or ($deploymentSettings.rmmVariables) ) {
+If ( (Test-Path -Path 'Env:\PSADT_MirrorURI') -or ($deploymentSettings.rmmVariables) ) {
     $rmmEnv = New-Object -TypeName psobject
 
     # Export Mirror URI Variables if they exist
-    If ( Test-Path -Path 'Env:\PSADT_MirrorURI' ) {
+    If (Test-Path -Path 'Env:\PSADT_MirrorURI') {
         Write-Information -MessageData ('Env:\PSADT_MirrorURI found as a site or account variable')
         $envVar = (Get-Item -Path 'Env:\PSADT_MirrorURI' | Select-Object -Property Name,Value)
         $rmmEnv | Add-Member -MemberType NoteProperty -Name $envVar.Name -Value $envVar.Value
+    } else {
+        Write-Warning -Message 'Env:\PSADT_MirrorURI not found as a site or account variable'
     }
-    If ( Test-Path -Path 'Env:\PSADT_MirrorURISAS' ) {
+    If (Test-Path -Path 'Env:\PSADT_MirrorURISAS') {
         Write-Information -MessageData ('Env:\PSADT_MirrorURISAS found as a site or account variable')
         $envVar = (Get-Item -Path 'Env:\PSADT_MirrorURISAS' | Select-Object -Property Name,Value)
         $rmmEnv | Add-Member -MemberType NoteProperty -Name $envVar.Name -Value $envVar.Value
+    } else {
+        Write-Warning -Message 'Env:\PSADT_MirrorURISAS not found as a site or account variable'
     }
 
     # Export needed RMM Environment Variables to JSON for use in PSADT
@@ -312,7 +316,7 @@ else {
 }
 
 If ( ($psadtLogPathNoAdmin -ne $psadtLogPath) -and ($psadtLogPathNoAdmin -ne $msiLogPath) ) {
-    If (Test-Path ($psadtLogPathNoAdmin)) {
+    If (Test-Path -Path $psadtLogPathNoAdmin) {
         $psadtLogFiles += (Get-ChildItem -Path $psadtLogPathNoAdmin -Filter '*.log')
     }
     else {

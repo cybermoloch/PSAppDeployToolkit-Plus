@@ -214,9 +214,11 @@ Try {
 				$packageFilename = $packageFilename.Substring(0, $packageFilename.IndexOf('?'))    
 			}
 
-			If ($PSADT_MirrorUri) {
-				$appMirrorPath = ( $appVendor.ToLower() + '\' + $appName + '\' + $appVersion + '\' + $packageFilename )
-				If ($PSADT_MirrorUriSAS) {
+			If ($PSADT_MirrorURI) {
+				Write-Log -Message 'Mirror Base URI found'
+				$appMirrorPath = ($appVendor.ToLower() + '\' + $appName + '\' + $appVersion + '\' + $appArch + '\' + $packageFilename)
+				If ($PSADT_MirrorURISAS) {
+					Write-Log -Message 'Mirror URI SAS found'
 					$appMirrorUri = ($PSADT_MirrorUri + $appMirrorPath + $PSADT_MirrorUriSAS)
 				} else {
 					$appMirrorUri = ($PSADT_MirrorUri + $appMirrorPath)
