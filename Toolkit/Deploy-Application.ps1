@@ -72,9 +72,13 @@ Try {
 	[string]$appArch = $deploySettings.psadtVariables.appArch
 	[string]$appLang = $deploySettings.psadtVariables.appLang
 	[string]$appRevision = $deploySettings.psadtVariables.appRevision
-	[string]$appScriptVersion = '3.0.0.1'
+	[string]$appScriptVersion = '3.5.0.5'
 	[string]$appScriptDate = $deploySettings.psadtVariables.appScriptDate
 	[string]$appScriptAuthor = $deploySettings.psadtVariables.appScriptAuthor
+
+	## Additional metadata from PSADT-Plus
+	[string]$appId = $deploySettings.psadtVariables.appId
+	[string]$appDesc = $deploySettings.psadtVariables.appDesc
 
 	##*===============================================
 	## Variables: Install Titles (Only set here to override defaults set by the toolkit)
