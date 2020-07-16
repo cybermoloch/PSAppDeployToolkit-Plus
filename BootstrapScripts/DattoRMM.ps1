@@ -1,6 +1,6 @@
 <#PSScriptInfo
 
-.VERSION 3.2.1
+.VERSION 3.3.0
 
 .AUTHOR cybermoloch@magitekai.com
 
@@ -11,7 +11,7 @@
 .PROJECTURI https://gitlab.com/cybermoloch/psappdeploytoolkit-plus/
 
 .RELEASENOTES
-    Added metadata
+    Added auto-mirror URI
 
 #>
 
@@ -204,10 +204,24 @@ $msiLogPath = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDe
 Write-Output ('MSI Log file location: ' + $msiLogPath)
 
 
-# Export needed RMM Environment Variables to JSON for use in PSADT
-if ($deploymentSettings.rmmVariables) {
-    Write-Output ('Attempting export of ' + ($deploymentSettings.rmmVariables -Join ',') + ' variables to JSON file.')
+If ( ( Test-Path -Path ("Env:\PSADT_MirrorURI") ) -or ($deploymentSettings.rmmVariables) ) {
     $rmmEnv = New-Object -TypeName psobject
+
+    # Export Mirror URI Variables if they exist
+    If ( Test-Path -Path ("Env:\PSADT_MirrorURI") ) {
+        Write-Information -MessageData ('Env:\PSADT_MirrorURI found as a site or account variable')
+        $envVar = (Get-Item -Path 'Env:\PSADT_MirrorURI' | Select-Object -Property Name,Value)
+        $rmmEnv | Add-Member -MemberType NoteProperty -Name $envVar.Name -Value $envVar.Value
+    }
+    If ( Test-Path -Path ("Env:\PSADT_MirrorURISAS") ) {
+        Write-Information -MessageData ('Env:\PSADT_MirrorURISAS found as a site or account variable')
+        $envVar = (Get-Item -Path 'Env:\PSADT_MirrorURISAS' | Select-Object -Property Name,Value)
+        $rmmEnv | Add-Member -MemberType NoteProperty -Name $envVar.Name -Value $envVar.Value
+    }
+
+    # Export needed RMM Environment Variables to JSON for use in PSADT
+    If ($deploymentSettings.rmmVariables) {
+    Write-Output ('Attempting export of ' + ($deploymentSettings.rmmVariables -Join ',') + ' variables to JSON file.') 
     $deploymentSettings.rmmVariables | ForEach-Object -Process {
         # Check for same Variable with "or" prefix for override from component (vs inherited from site or account level)
         $override = ('Env:or' + $PSItem)
@@ -225,8 +239,9 @@ if ($deploymentSettings.rmmVariables) {
                     Write-Warning -Message ($PSItem + ' not found in site variables.')
                 }
             }
+        }
     }
-        $rmmEnv | ConvertTo-Json | Out-File -FilePath ($psadtSupportPath + '\rmmEnv.json')
+    $rmmEnv | ConvertTo-Json | Out-File -FilePath ($psadtSupportPath + '\rmmEnv.json')
 }
 
 # Checking and setting options for INSTALL vs UNINSTALL
