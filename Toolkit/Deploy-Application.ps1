@@ -219,10 +219,11 @@ Try {
 				$appMirrorPath = ($appVendor.ToLower() + '\' + $appName + '\' + $appVersion + '\' + $appArch + '\' + $packageFilename)
 				If ($PSADT_MirrorURISAS) {
 					Write-Log -Message 'Mirror URI SAS found'
-					$appMirrorUri = ($PSADT_MirrorUri + $appMirrorPath + $PSADT_MirrorUriSAS)
+					$appMirrorUri = ($PSADT_MirrorURI + $appMirrorPath + $PSADT_MirrorURISAS)
 				} else {
-					$appMirrorUri = ($PSADT_MirrorUri + $appMirrorPath)
+					$appMirrorUri = ($PSADT_MirrorURI + $appMirrorPath)
 				}
+				Write-Log -Message ('Adding '+ $appMirrorUri + ' to download URIs')
 				$packageUri += $appMirrorUri
 			}
 

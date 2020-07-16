@@ -109,11 +109,12 @@ Function Get-FileFromUri {
             }
             
             Try {
+                Write-Log -Message ('Trying to download from: ' + $Uri[$uriCount])
                 $dlStartTime = Get-Date
                 $download = Invoke-WebRequest -Uri $Uri[$uriCount] -OutFile $Destination -UseBasicParsing -ErrorAction 'Continue'
 
                     If ($?) {
-                        Write-Log -Message ($Uri[$uriCount] + ' download completed in ' + $((Get-Date).Subtract($dlStartTime).Seconds) + ' second(s)')
+                        Write-Log -Message ('Download completed in ' + $((Get-Date).Subtract($dlStartTime).Seconds) + ' second(s)')
 
                         # Verify SHA256 Hash if provided
                         If ($Sha256) {
