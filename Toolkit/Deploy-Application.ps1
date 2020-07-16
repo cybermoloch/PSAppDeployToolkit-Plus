@@ -223,7 +223,7 @@ Try {
 				} else {
 					$appMirrorUri = ($PSADT_MirrorUri + $appMirrorPath)
 				}
-				$deploySettings.appDetails.downloadInfo.${appArch}.uri += $appMirrorUri
+				$packageUri += $appMirrorUri
 			}
 
 			# Get extension of file
