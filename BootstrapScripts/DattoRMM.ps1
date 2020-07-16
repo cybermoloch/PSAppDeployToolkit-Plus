@@ -1,6 +1,6 @@
 <#PSScriptInfo
 
-.VERSION 3.3.0
+.VERSION 3.3.1
 
 .AUTHOR cybermoloch@magitekai.com
 
@@ -208,12 +208,12 @@ If ( ( Test-Path -Path ("Env:\PSADT_MirrorURI") ) -or ($deploymentSettings.rmmVa
     $rmmEnv = New-Object -TypeName psobject
 
     # Export Mirror URI Variables if they exist
-    If ( Test-Path -Path ("Env:\PSADT_MirrorURI") ) {
+    If ( Test-Path -Path 'Env:\PSADT_MirrorURI' ) {
         Write-Information -MessageData ('Env:\PSADT_MirrorURI found as a site or account variable')
         $envVar = (Get-Item -Path 'Env:\PSADT_MirrorURI' | Select-Object -Property Name,Value)
         $rmmEnv | Add-Member -MemberType NoteProperty -Name $envVar.Name -Value $envVar.Value
     }
-    If ( Test-Path -Path ("Env:\PSADT_MirrorURISAS") ) {
+    If ( Test-Path -Path 'Env:\PSADT_MirrorURISAS' ) {
         Write-Information -MessageData ('Env:\PSADT_MirrorURISAS found as a site or account variable')
         $envVar = (Get-Item -Path 'Env:\PSADT_MirrorURISAS' | Select-Object -Property Name,Value)
         $rmmEnv | Add-Member -MemberType NoteProperty -Name $envVar.Name -Value $envVar.Value
