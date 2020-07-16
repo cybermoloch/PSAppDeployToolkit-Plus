@@ -214,6 +214,16 @@ Try {
 				$packageFilename = $packageFilename.Substring(0, $packageFilename.IndexOf('?'))    
 			}
 
+			If ($PSADT_MirrorUri) {
+				$appMirrorPath = ( $appVendor.ToLower() + '\' + $appName + '\' + $appVersion + '\' + $packageFilename )
+				If ($PSADT_MirrorUriSAS) {
+					$appMirrorUri = ($PSADT_MirrorUri + $appMirrorPath + $PSADT_MirrorUriSAS)
+				} else {
+					$appMirrorUri = ($PSADT_MirrorUri + $appMirrorPath)
+				}
+				$deploySettings.appDetails.downloadInfo.${appArch}.uri += $appMirrorUri
+			}
+
 			# Get extension of file
 			$packageFileType = (($packageFilename).Split('.')[-1])
 
