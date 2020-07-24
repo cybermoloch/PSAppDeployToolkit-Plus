@@ -465,7 +465,8 @@ Function Close-Window {
 					}
                     Try {
                         $FoundWindow | ForEach-Object {
-                            $FoundWindow.ParentProcessObj.CloseMainWindow() | Out-Null
+                            $windowProcess = Get-Process -Id $FoundWindow.ParentProcessId
+                            $windowProcess.CloseMainWindow() | Out-Null
                             Write-Log -Message ('Closed "' + $PSItem.WindowTitle + '"')
                         }
                     }
