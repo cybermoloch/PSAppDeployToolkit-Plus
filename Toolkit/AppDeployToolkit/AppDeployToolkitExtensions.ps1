@@ -431,6 +431,69 @@ Function Set-UserFta {
      
 }
 
+Function Close-Window {
+	<#
+    .SYNOPSIS
+    Request that a process gracefully closes.
+
+	.DESCRIPTION
+	Can take process object to close by PID incase the window gets hidden
+	#>
+
+	[CmdletBinding(DefaultParameterSetName = 'ByName')]
+	param(
+		[Parameter(Position = 0, Mandatory = $true, ValueFromPipeline = $true, ParameterSetName = 'ByName')]
+        [String[]] $Name,
+
+        [Parameter(Position = 0, Mandatory = $true, ValueFromPipelineByPropertyName = $true, ParameterSetName = 'ByProcess')]
+		[Int[]] $Id
+	)
+
+	Process {
+        If ($PSCmdlet.ParameterSetName -eq 'ByName') {
+			Write-Log -Message ('Attempting to close window: ' + $Name)
+            $Name | ForEach-Object {
+                Try {
+					# Restringify for Get-WindowTitle because it needs a clean regex string?
+					$sName = $ExecutionContext.InvokeCommand.ExpandString($Name)
+                    $FoundWindow = Get-WindowTitle -WindowTitle $sName
+                    If ($FoundWindow.Count) {
+						Write-Log -Message ($sName + ' found ' + $FoundWindow.Count + ' times.')
+					}
+					Else {
+						Write-Log -Message ($sName + ' found.')
+					}
+                    Try {
+                        $FoundWindow | ForEach-Object {
+                            $FoundWindow.ParentProcessObj.CloseMainWindow() | Out-Null
+                            Write-Log -Message ('Closed "' + $PSItem.WindowTitle + '"')
+                        }
+                    }
+                    Catch {
+                        Write-Log -Message ($Error)
+                    }
+                }
+                Catch {
+                    Write-Log -Message ($Error)
+                }
+            }
+        }
+
+        If ($PSCmdlet.ParameterSetName -eq 'ByProcess') {
+			Write-Log -Message ('Attempting to close window: ' + $PSItem.MainWindowTitle)
+            Try {
+                $PSItem | ForEach-Object {
+                    $PSItem.CloseMainWindow() | Out-Null
+                    Write-Log -Message ('Closed: ' + $PSItem.MainWindowTitle + ' (Process Name: ' + $PSItem.Processname + ', Id: ' + $PSItem.Id + ')')
+                }
+            }
+            Catch {
+                Write-Log -Message ($Error)
+            }
+        }
+	}
+}
+
 ##*===============================================
 ##* END FUNCTION LISTINGS
 ##*===============================================
