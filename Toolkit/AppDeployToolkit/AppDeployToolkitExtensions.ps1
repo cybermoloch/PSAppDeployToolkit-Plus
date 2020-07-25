@@ -445,11 +445,15 @@ Function Close-Window {
 		[Parameter(Position = 0, Mandatory = $true, ValueFromPipeline = $true, ParameterSetName = 'ByName')]
         [String[]] $Name,
 
+        [Parameter(Position = 0, Mandatory = $true, ValueFromPipelineByPropertyName = $true, ParameterSetName = 'ByWindowParentProcessId')]
+		[Int[]] $ParentProcessId,
+
         [Parameter(Position = 0, Mandatory = $true, ValueFromPipelineByPropertyName = $true, ParameterSetName = 'ByProcess')]
 		[Int[]] $Id
 	)
 
 	Process {
+		# When pipelined an array of names or a single name as a parameter
         If ($PSCmdlet.ParameterSetName -eq 'ByName') {
 			Write-Log -Message ('Attempting to close window: ' + $Name)
                Try {
@@ -464,9 +468,15 @@ Function Close-Window {
 				}
                 Try {
                     $FoundWindow | ForEach-Object {
-                    $windowProcess = Get-Process -Id $FoundWindow.ParentProcessId
-                    $windowProcess.CloseMainWindow() | Out-Null
-                    Write-Log -Message ('Closed "' + $windowProcess.WindowTitle + ' (Process Name: ' + $windowProcess.Processname + ', Id: ' + $windowProcess.Id + ')')
+                    	$windowProcess = Get-Process -Id $PSItem.ParentProcessId
+						Try {
+							$windowProcess.CloseMainWindow() | Out-Null
+							# Sometimes cannot display MainWindowTitle with multiple matches?
+                    		Write-Log -Message ('Closed "' + $windowProcess.MainWindowTitle + '" (Process Name: ' + $windowProcess.Processname + ', Id: ' + $windowProcess.Id + ')')
+						}
+						Catch {
+							Write-Log -Message ($Error)
+						}
                     }
                 }
                 Catch {
@@ -478,19 +488,39 @@ Function Close-Window {
             }
         }
 
-        If ($PSCmdlet.ParameterSetName -eq 'ByProcess') {
-			Write-Log -Message ('Attempting to close window: ' + $PSItem.MainWindowTitle)
-            Try {
-                $PSItem | ForEach-Object {
-                    $PSItem.CloseMainWindow() | Out-Null
-                    Write-Log -Message ('Closed: ' + $PSItem.MainWindowTitle + ' (Process Name: ' + $PSItem.Processname + ', Id: ' + $PSItem.Id + ')')
+        # Pipeline from Get-WindowTitle
+		If ($PSCmdlet.ParameterSetName -eq 'ByWindowParentProcessId') {
+			Write-Log -Message ('Attempting to close window: ' + $PSItem.WindowTitle)
+               Try {
+                $windowParentProcess = Get-Process -Id $PSItem.ParentProcessId				
+				Write-Log -Message ($PSItem.WindowTitle + ' found.')
+                Try {
+                    $windowParentProcess | ForEach-Object {
+                    	$PSItem.CloseMainWindow() | Out-Null
+                    	Write-Log -Message ('Closed "' + $PSItem.MainWindowTitle + '" (Process Name: ' + $PSItem.Name + ', Id: ' + $PSItem.Id + ')')
+                    }
+                }
+                Catch {
+            	    Write-Log -Message ($Error)
                 }
             }
             Catch {
                 Write-Log -Message ($Error)
             }
         }
-    }
+
+        # Pipeline from Get-Process
+		If ($PSCmdlet.ParameterSetName -eq 'ByProcess') {
+			Write-Log -Message ('Attempting to close window: ' + $PSItem.MainWindowTitle)
+            Try {
+                $PSItem.CloseMainWindow() | Out-Null
+                Write-Log -Message ('Closed: ' + $PSItem.MainWindowTitle + ' (Process Name: ' + $PSItem.Processname + ', Id: ' + $PSItem.Id + ')')    
+            }
+            Catch {
+                Write-Log -Message ($Error)
+            }
+        }
+	}
 }
 
 ##*===============================================
