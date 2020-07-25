@@ -431,6 +431,103 @@ Function Set-UserFta {
      
 }
 
+Function Set-WindowState {
+
+	[CmdletBinding(DefaultParameterSetName = 'ByName')]
+	param(
+		[Parameter(Position = 0, Mandatory = $true, ValueFromPipeline = $true, ParameterSetName = 'ByName')]
+        [String[]] $Name,
+
+        [Parameter(Position = 0, Mandatory = $true, ValueFromPipelineByPropertyName = $true, ParameterSetName = 'ByParentProcessMainWindowHandle')]
+		[IntPtr[]] $ParentProcessMainWindowHandle,
+
+		[Parameter(Position = 0, Mandatory = $true, ValueFromPipelineByPropertyName = $true, ParameterSetName = 'ByProcess')]
+		[Int[]] $Id,
+	
+		[Parameter(Position = 1, Mandatory = $true)]
+		[ValidateSet('FORCEMINIMIZE', 'HIDE', 'MAXIMIZE', 'MINIMIZE', 'RESTORE',
+					 'SHOW', 'SHOWDEFAULT', 'SHOWMAXIMIZED', 'SHOWMINIMIZED',
+					 'SHOWMINNOACTIVE', 'SHOWNA', 'SHOWNOACTIVATE', 'SHOWNORMAL')]
+		[string] $State
+	)
+
+	Begin {
+		$WindowStates = @{
+			'FORCEMINIMIZE'		= 11
+			'HIDE'				= 0
+			'MAXIMIZE'			= 3
+			'MINIMIZE'			= 6
+			'RESTORE'			= 9
+			'SHOW'				= 5
+			'SHOWDEFAULT'		= 10
+			'SHOWMAXIMIZED'		= 3
+			'SHOWMINIMIZED'		= 2
+			'SHOWMINNOACTIVE'	= 7
+			'SHOWNA'			= 8
+			'SHOWNOACTIVATE'	= 4
+			'SHOWNORMAL'		= 1
+		}
+
+		$Win32ShowWindowAsync = '[DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);'
+		$ApiShowWindowAsync = Add-Type -MemberDefinition $Win32ShowWindowAsync -Name 'WindowApi' -PassThru
+	}
+
+	Process {
+        # When pipelined an array of names or a single name as a parameter
+		If ($PSCmdlet.ParameterSetName -eq 'ByName') {
+			Write-Log -Message ('Attempting to "' + $State +'" window: ' + $Name)
+               Try {
+				# Restringify for Get-WindowTitle because it needs a clean regex string?
+				$sName = $ExecutionContext.InvokeCommand.ExpandString($Name)
+                $FoundWindow = Get-WindowTitle -WindowTitle $sName
+                If ($FoundWindow.Count) {
+					Write-Log -Message ($sName + ' found ' + $FoundWindow.Count + ' times.')
+				}
+				Elseif ($FoundWindow) {
+					Write-Log -Message ($sName + ' found.')
+				}
+                Try {
+                    $FoundWindow | ForEach-Object {
+						$ApiShowWindowAsync::ShowWindowAsync($PSItem.ParentProcessMainWindowHandle, $WindowStates[$State]) | Out-Null
+                   		Write-Log -Message ('Window State "' + $State + '" set for "' + $PSItem.WindowTitle + '" (Process Name: ' + $PSItem.ParentProcess + ', Id: ' + $PSItem.ParentProcessId + ')')
+                    }
+                }
+                Catch {
+            	    Write-Log -Message ($Error)
+                }
+            }
+            Catch {
+                Write-Log -Message ($Error)
+            }
+        }
+
+        # Pipeline from Get-WindowTitle
+		If ($PSCmdlet.ParameterSetName -eq 'ByParentProcessMainWindowHandle') {
+			Write-Log -Message ('Attempting to "' + $State +'" window: ' + $PSItem.WindowTitle)
+			If ($PSItem.ParentProcessMainWindowHandle -eq 0) {
+				Write-Log -Message ('Could not set Window State for "' + $PSItem.WindowTitle + '"; MainWindowHandle is 0 (Hidden)')
+			}
+			Else {
+               	$ApiShowWindowAsync::ShowWindowAsync($PSItem.ParentProcessMainWindowHandle, $WindowStates[$State]) | Out-Null
+               	Write-Log -Message ('Window State "' + $State + ' set for ' + $PSItem.WindowTitle + ' (Process Name: ' + $PSItem.ParentProcess + ', Id: ' + $PSItem.ParentProcessId + ')')
+			}
+        }
+
+		# When pipelined Get-Process
+		If ($PSCmdlet.ParameterSetName -eq 'ByProcess') {
+			Write-Log -Message ('Attempting to "' + $State +'" windows belong to process: ' + $PSItem.Name + ' (Id: ' + $PSItem.Id + ')')
+			If ($PSItem.MainWindowHandle -eq 0) {
+				Write-Log -Message ('Could not set Window State for "' + $PSItem.Name + ' (Id: ' + $PSItem.Id + ')"; MainWindowHandle is 0 (Hidden)')
+			}
+			Else {
+            	$ApiShowWindowAsync::ShowWindowAsync($PSItem.MainWindowHandle, $WindowStates[$State]) | Out-Null
+                Write-Log -Message ('Window State "' + $State + ' set for ' + $PSItem.MainWindowTitle + ' (Process Name: ' + $PSItem.Name + ', Id: ' + $PSItem.Id + ')')
+			}
+        }
+
+	}
+}
+
 Function Close-Window {
 	<#
     .SYNOPSIS
@@ -463,7 +560,7 @@ Function Close-Window {
                 If ($FoundWindow.Count) {
 					Write-Log -Message ($sName + ' found ' + $FoundWindow.Count + ' times.')
 				}
-				Else {
+				Elseif ($FoundWindow) {
 					Write-Log -Message ($sName + ' found.')
 				}
                 Try {
@@ -490,35 +587,33 @@ Function Close-Window {
 
         # Pipeline from Get-WindowTitle
 		If ($PSCmdlet.ParameterSetName -eq 'ByWindowParentProcessId') {
-			Write-Log -Message ('Attempting to close window: ' + $PSItem.WindowTitle)
-               Try {
-                $windowParentProcess = Get-Process -Id $PSItem.ParentProcessId				
+			Write-Log -Message ('Attempting to close window [' + $PSItem.WindowTitle + '] [' + $PSItem.ParentProcess + ',' + $PSItem.ParentProcessId + ']')
+            Try {
+            	$windowParentProcess = Get-Process -Id $PSItem.ParentProcessId -ErrorAction 'Stop'
 				Write-Log -Message ($PSItem.WindowTitle + ' found.')
-                Try {
-                    $windowParentProcess | ForEach-Object {
-                    	$PSItem.CloseMainWindow() | Out-Null
-                    	Write-Log -Message ('Closed "' + $PSItem.MainWindowTitle + '" (Process Name: ' + $PSItem.Name + ', Id: ' + $PSItem.Id + ')')
-                    }
-                }
-                Catch {
-            	    Write-Log -Message ($Error)
-                }
-            }
+				$windowParentProcess.CloseMainWindow() | Out-Null
+				If ($windowParentProcess.HasExited) {
+					Write-Log -Message ('Closed "' + $windowParentProcess.MainWindowTitle + '" (Process Name: ' + $windowParentProcess.Name + ', Id: ' + $windowParentProcess.Id + ')')
+				}
+				Else {
+					Write-Log -Message ('Unable to close "' + $windowParentProcess.MainWindowTitle + '" (Process Name: ' + $windowParentProcess.Name + ', Id: ' + $windowParentProcess.Id + ')')
+				}
+			}
             Catch {
-                Write-Log -Message ($Error)
+                Write-Log -Message ($PSItem.Exception.Message)
             }
         }
 
         # Pipeline from Get-Process
 		If ($PSCmdlet.ParameterSetName -eq 'ByProcess') {
 			Write-Log -Message ('Attempting to close window: ' + $PSItem.MainWindowTitle)
-            Try {
-                $PSItem.CloseMainWindow() | Out-Null
-                Write-Log -Message ('Closed: ' + $PSItem.MainWindowTitle + ' (Process Name: ' + $PSItem.Processname + ', Id: ' + $PSItem.Id + ')')    
-            }
-            Catch {
-                Write-Log -Message ($Error)
-            }
+            $PSItem.CloseMainWindow() | Out-Null
+            If ($PSItem.HasExited) {
+				Write-Log -Message ('Closed: ' + $PSItem.MainWindowTitle + ' (Process Name: ' + $PSItem.Processname + ', Id: ' + $PSItem.Id + ')')
+			}
+			Else {
+				Write-Log -Message ('Unable to close: ' + $PSItem.MainWindowTitle + ' (Process Name: ' + $PSItem.Processname + ', Id: ' + $PSItem.Id + ')')
+			}
         }
 	}
 }
