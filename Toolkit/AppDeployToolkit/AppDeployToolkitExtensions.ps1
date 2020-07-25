@@ -452,31 +452,29 @@ Function Close-Window {
 	Process {
         If ($PSCmdlet.ParameterSetName -eq 'ByName') {
 			Write-Log -Message ('Attempting to close window: ' + $Name)
-            $Name | ForEach-Object {
+               Try {
+				# Restringify for Get-WindowTitle because it needs a clean regex string?
+				$sName = $ExecutionContext.InvokeCommand.ExpandString($Name)
+                $FoundWindow = Get-WindowTitle -WindowTitle $sName
+                If ($FoundWindow.Count) {
+					Write-Log -Message ($sName + ' found ' + $FoundWindow.Count + ' times.')
+				}
+				Else {
+					Write-Log -Message ($sName + ' found.')
+				}
                 Try {
-					# Restringify for Get-WindowTitle because it needs a clean regex string?
-					$sName = $ExecutionContext.InvokeCommand.ExpandString($Name)
-                    $FoundWindow = Get-WindowTitle -WindowTitle $sName
-                    If ($FoundWindow.Count) {
-						Write-Log -Message ($sName + ' found ' + $FoundWindow.Count + ' times.')
-					}
-					Else {
-						Write-Log -Message ($sName + ' found.')
-					}
-                    Try {
-                        $FoundWindow | ForEach-Object {
-                            $windowProcess = Get-Process -Id $FoundWindow.ParentProcessId
-                            $windowProcess.CloseMainWindow() | Out-Null
-                            Write-Log -Message ('Closed "' + $PSItem.WindowTitle + '"')
-                        }
-                    }
-                    Catch {
-                        Write-Log -Message ($Error)
+                    $FoundWindow | ForEach-Object {
+                    $windowProcess = Get-Process -Id $FoundWindow.ParentProcessId
+                    $windowProcess.CloseMainWindow() | Out-Null
+                    Write-Log -Message ('Closed "' + $windowProcess.WindowTitle + ' (Process Name: ' + $windowProcess.Processname + ', Id: ' + $windowProcess.Id + ')')
                     }
                 }
                 Catch {
-                    Write-Log -Message ($Error)
+            	    Write-Log -Message ($Error)
                 }
+            }
+            Catch {
+                Write-Log -Message ($Error)
             }
         }
 
@@ -492,7 +490,7 @@ Function Close-Window {
                 Write-Log -Message ($Error)
             }
         }
-	}
+    }
 }
 
 ##*===============================================
