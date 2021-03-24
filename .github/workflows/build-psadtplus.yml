@@ -11,9 +11,14 @@ jobs:
     steps:
       - name: Checkout PSADT-Plus repository
         uses: actions/checkout@v2
-      - name: Build PSADT-Plus zip with PSDT newest release
+      - name: Build with PSADT newest release
         shell: pwsh
         run: pwsh -command ".\$GITHUB_WORKSPACE\Build-PsadtPlus.ps1"
+      - name: Upload zip as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: psadtplus-release
+          path: PSADTPlus*.zip  
 
   buildfrommaster:
     name: Build PSADT-Plus from PSADT master git branch
@@ -23,6 +28,11 @@ jobs:
     steps:
       - name: Checkout PSADT-Plus repository
         uses: actions/checkout@v2
-      - name: Build PSADT-Plus zip with PSDT current master branch
+      - name: Build with PSADT current master branch
         shell: pwsh
         run: pwsh -command ".\$GITHUB_WORKSPACE\Build-PsadtPlus.ps1"
+      - name: Upload zip as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: psadtplus-master
+          path: PSADTPlus*.zip
