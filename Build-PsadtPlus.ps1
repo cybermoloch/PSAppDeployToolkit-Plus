@@ -5,7 +5,7 @@ If (${env:build_type} -eq 'master') {
     $PsadtUri = 'https://github.com/PSAppDeployToolkit/PSAppDeployToolkit/archive/master.zip'
 }
 else {
-    $PsadtUri = 'https://github.com/PSAppDeployToolkit/PSAppDeployToolkit/releases/download/3.8.2/PSAppDeployToolkit_v3.8.2.zip'    
+    $PsadtUri = 'https://github.com/PSAppDeployToolkit/PSAppDeployToolkit/releases/download/3.8.4/PSAppDeployToolkit_v3.8.4.zip'    
 }
 $NtfsSecurityUri = 'https://github.com/raandree/NTFSSecurity/releases/download/4.2.6/NTFSSecurity.zip'
 $VcRedistUri = 'https://github.com/aaronparker/VcRedist/archive/v2.0.163.zip'
