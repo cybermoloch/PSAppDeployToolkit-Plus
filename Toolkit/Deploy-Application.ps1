@@ -277,55 +277,67 @@ Try {
 		# dotNet and vcRedist Prequisites check and install
 		# should add failure messages to user and exit script if fails
 		Show-InstallationProgress -StatusMessage ('Checking for dependencies')
-		If ($deploySettings.appDetails.dotNet35.required) {
-			Write-Log -Message ('.NET Framework 3.5 required')
-			If ( -Not (Test-DotNet35) ) {
-				Write-Log -Message ('.NET Framework 3.5 was not found. Attempting to install it.')
-				Show-InstallationProgress -StatusMessage ('Installing .NET Framework 3.5')
-				Install-DotNet35
+		
+		If ($deploySettings.appDetails.prerequisites)  {
+			Write-Log -Message ('Following prerequisites specified:')
+			Write-Log -Message $deploySettings.appDetails.prerequisites
+			$deploySettings.appDetails.prerequisites | ForEach-Object -Process {
+				$prereq = $PSItem
+				Switch -exact ($prereq.type)
+				{
+					'dotNet35' {
+						Write-Log -Message ('.NET Framework 3.5 required')
+						If ( -Not (Test-DotNet35) ) {
+							Write-Log -Message ('.NET Framework 3.5 was not found. Attempting to install it.')
+							Show-InstallationProgress -StatusMessage ('Installing .NET Framework 3.5')
+							Install-DotNet35
+						}
+						else {
+							Write-Log -Message ('.NET Framework 3.5 is installed.')
+						}
+					}
+					'dotNet4x' {
+						Write-Log -Message ('.NET Framework ' + ($prereq.minVersion) + ' required')
+						If ( -Not (Test-DotNet4x -MinVersion $prereq.minVersion) ) {
+							Write-Log -Message ('.NET Framework ' + ($prereq.minVersion) + ' was not found. Attempting to install .NET Framwork 4.8')
+							Show-InstallationProgress -StatusMessage ('Installing .NET Framework 4.8')
+							Install-DotNet4x
+						}
+						else {
+							Write-Log -Message ('.NET Framework ' + ($prereq.MinVersion) + ' is installed')
+						}
+					}
+					'dotNetCore' {
+						Write-Log -Message ('.NET Core Runtime ' + ($prereq.minVersion) + ' required')
+						If ( -Not (Test-DotNetCore -MinVersion $prereq.minVersion) ) {
+							Write-Log -Message ('.NET Core Runtime ' + ($prereq.minVersion) + ' was not found. Attempting to install .NET Core')
+							Show-InstallationProgress -StatusMessage ('Installing .NET Core Runtime')
+							Install-DotNetCore
+						}
+						else {
+							Write-Log -Message ('.NET Core Runtime ' + ($prereq.MinVersion) + ' is already installed')
+						}
+					}
+					'vcRedist' {
+						$vcRedistParams = @{
+							Release = $prereq.release
+							Architecture = $appArch
+							MinVersion = $prereq.minVersion
+						}
+						# Checking for Visual Studio Redistributables
+						If ( -Not (Test-VcRedist @vcRedistParams) ) {
+							Write-Log -Message ('The required vcRedist was not found. Attempting to install.')
+							Install-VcRedistByRelease -Release ($prereq.release) -Architecture ($appArch)
+						}
+					}
+					default {
+						Write-Log -Message ('Unknown prequisite type: ' + $prereq.type)
+					}
+				}
 			}
-			else {
-				Write-Log -Message ('.NET Framework 3.5 is installed.')
-			}
-		}
 
-		If ($deploySettings.appDetails.dotNet4x.required) {
-			Write-Log -Message ('.NET Framework ' + ($deploySettings.appDetails.dotNet4x.minVersion) + ' required')
-			If ( -Not (Test-DotNet4x -MinVersion $deploySettings.appDetails.dotNet4x.minVersion) ) {
-				Write-Log -Message ('.NET Framework ' + ($deploySettings.appDetails.dotNet4x.minVersion) + ' was not found. Attempting to install .NET Framwork 4.8')
-				Show-InstallationProgress -StatusMessage ('Installing .NET Framework 4.8')
-				Install-DotNet4x
-			}
-			else {
-				Write-Log -Message ('.NET Framework ' + ($deploySettings.appDetails.dotNet4x.MinVersion) + ' is installed')
-			}
 		}
 		
-		If ($deploySettings.appDetails.dotNetCore.required) {
-			Write-Log -Message ('.NET Core Runtime ' + ($deploySettings.appDetails.dotNetCore.minVersion) + ' required')
-			If ( -Not (Test-DotNetCore -MinVersion $deploySettings.appDetails.dotNetCore.minVersion) ) {
-				Write-Log -Message ('.NET Core Runtime ' + ($deploySettings.appDetails.dotNetCore.minVersion) + ' was not found. Attempting to install .NET Core')
-				Show-InstallationProgress -StatusMessage ('Installing .NET Core Runtime')
-				Install-DotNetCore
-			}
-			else {
-				Write-Log -Message ('.NET Core Runtime ' + ($deploySettings.appDetails.dotNetCore.MinVersion) + ' is already installed')
-			}
-		}	
-		
-		If ($deploySettings.appDetails.vcRedist.required) {
-			$vcRedistParams = @{
-				Release = $deploySettings.appDetails.vcRedist.release
-				Architecture = $appArch
-				MinVersion = $deploySettings.appDetails.vcRedist.minVersion
-			}
-			# Checking for Visual Studio Redistributables
-			If ( -Not (Test-VcRedist @vcRedistParams) ) {
-				Write-Log -Message ('The required vcRedist was not found. Attempting to install.')
-				Install-VcRedistByRelease -Release ($deploySettings.appDetails.vcRedist.release) -Architecture ($appArch)
-			}
-		}	
-
 		If ($deploySettings.tasks.preinstallation) {
 			Show-InstallationProgress -StatusMessage ('Performing pre-installation tasks')
 			$deploySettings.tasks.preinstallation | ForEach-Object -Process {Invoke-Expression $_}
