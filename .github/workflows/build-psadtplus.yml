@@ -1,0 +1,28 @@
+name: Build-PSADTPlus
+on: push
+
+jobs:
+
+  buildfromrelease:
+    name: Build PSADT-Plus from PSADT Releases
+    runs-on: windows-latest
+    env:
+      build_type: release
+    steps:
+      - name: Checkout PSADT-Plus repository
+        uses: actions/checkout@v2
+      - name: Build PSADT-Plus zip with PSDT newest release
+        shell: pwsh
+        run: Build-PsadtPlus.ps1
+
+  buildfrommaster:
+    name: Build PSADT-Plus from PSADT master git branch
+    runs-on: windows-latest
+    env:
+      build_type: master
+    steps:
+      - name: Checkout PSADT-Plus repository
+        uses: actions/checkout@v2
+      - name: Build PSADT-Plus zip with PSDT current master branch
+        shell: pwsh
+        run: Build-PsadtPlus.ps1
