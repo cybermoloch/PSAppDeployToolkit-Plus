@@ -1,7 +1,7 @@
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ProgressPreference = 'SilentlyContinue'
 
-If (${env:CI_JOB_NAME} -eq 'build:upstream_gitmaster') {
+If (${env:build_type} -eq 'master') {
     $PsadtUri = 'https://github.com/PSAppDeployToolkit/PSAppDeployToolkit/archive/master.zip'
 }
 else {
@@ -33,7 +33,7 @@ Write-Output 'Extracting archives...'
 Get-ChildItem -Path '*.zip' | ForEach-Object -Process { Expand-Archive -Path $PSItem -Force }
 
 Write-Output 'Copying upstream PSApplDeployToolkit files...'
-If (${env:CI_JOB_NAME} -eq 'build:upstream_gitmaster') {
+If (${env:build_type} -eq 'master') {
     Copy-Item -Path 'PSAppDeployToolkit\PSAppDeployToolkit-master\Toolkit\*' -Destination 'PSADTPlus' -Recurse -Force
 }
 else {
@@ -63,11 +63,11 @@ Copy-Item -Path 'Toolkit\AppDeployToolkit\AppDeployToolkitExtensions.ps1' -Desti
 Copy-Item -Path 'Toolkit\AppDeployToolkit\AppDeployToolkitBanner.png' -Destination ($toolkitPath + '\AppDeployToolkitBanner.png') -Force
 Copy-Item -Path 'Toolkit\AppDeployToolkit\AppDeployToolkitLogo.ico' -Destination ($toolkitPath + '\AppDeployToolkitLogo.ico') -Force
 
-If (Test-Path -Path Env:\CI_COMMIT_TAG) {
-    $PsadtPlusFilename = ('PSADTPlus-' + ${env:CI_COMMIT_TAG} + '.zip')
+If (Test-Path -Path Env:\GITHUB_REFG) {
+    $PsadtPlusFilename = ('PSADTPlus-' + ${env:GITHUB_REF} + '.zip')
 }
-elseIf (Test-Path -Path Env:\CI_COMMIT_SHORT_SHA) {
-    $PsadtPlusFilename = ('PSADTPlus-' + ${env:CI_COMMIT_SHORT_SHA} + '.zip')
+elseIf (Test-Path -Path Env:\GITHUB_SHA) {
+    $PsadtPlusFilename = ('PSADTPlus-' + ${env:GITHUB_SHA}.Substring(0,7) + '.zip')
 }
 else {
     $PsadtPlusFilename = 'PSADTPlus.zip'
