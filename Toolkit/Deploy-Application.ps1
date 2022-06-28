@@ -210,8 +210,8 @@ Try {
         	}
         	while ($packageUri[$uriCount])
 
-            If ($deploySettings.appDetails.downloadInfo.$packageFilename) {
-				$packageFilename = $deploySettings.appDetails.downloadInfo.$packageFilename
+            If ($deploySettings.appDetails.downloadInfo.packageFilename) {
+				$packageFilename = $deploySettings.appDetails.downloadInfo.packageFilename
 			} Else {
 				# Get filename from the URI
 				$packageFilename = (Split-Path -Path $packageUri[0] -Leaf)
