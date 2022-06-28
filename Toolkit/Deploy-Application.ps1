@@ -210,12 +210,16 @@ Try {
         	}
         	while ($packageUri[$uriCount])
 
-			# Get filename from the URI
-			$packageFilename = (Split-Path -Path $packageUri[0] -Leaf)
+            If ($deploySettings.appDetails.downloadInfo.$packageFilename) {
+				$packageFilename = $deploySettings.appDetails.downloadInfo.$packageFilename
+			} Else {
+				# Get filename from the URI
+				$packageFilename = (Split-Path -Path $packageUri[0] -Leaf)
 
-			# Strip any part of filename after ? (query strings for protected downloads)
-			If ($packageFilename -match '\?') {
-				$packageFilename = $packageFilename.Substring(0, $packageFilename.IndexOf('?'))    
+				# Strip any part of filename after ? (query strings for protected downloads)
+				If ($packageFilename -match '\?') {
+					$packageFilename = $packageFilename.Substring(0, $packageFilename.IndexOf('?'))    
+				}
 			}
 
 			If ($PSADT_MirrorURI) {
