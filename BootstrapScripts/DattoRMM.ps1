@@ -198,7 +198,7 @@ If (Test-Path -Path ($psadtPath + '\AppDeployToolkitConfig.xml')) {
 # Reads the XML Configuration to confirm log locations; pushed or otherwise
 $psadtLogPath = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_LogPath)
 Write-Output ('PASADT Log file location: ' + $psadtLogPath)
-$psadtLogPathNoAdmin = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_NoAdminRights)
+$psadtLogPathNoAdmin = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.Toolkit_Options.Toolkit_LogPathNoAdminRights)
 Write-Output ('PASADT NoAdmin Log file location: ' + $psadtLogPathNoAdmin)
 $msiLogPath = $ExecutionContext.InvokeCommand.ExpandString($psadtConfigXml.AppDeployToolkit_Config.MSI_Options.MSI_LogPath)
 Write-Output ('MSI Log file location: ' + $msiLogPath)
